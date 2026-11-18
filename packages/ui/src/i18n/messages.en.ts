@@ -425,6 +425,9 @@ export const EN_MESSAGES = {
     'An editor opens pre-filled with the current prompt. Nothing is written until you save; saving writes ~/.pi/agent/SYSTEM.md, and from then on it alone governs the agent’s behaviour.',
   宿主: 'Host',
   插件: 'Plugin',
+  你: 'You',
+  助手: 'Assistant',
+  系统: 'System',
   你写的: 'Yours',
   收起内容: 'Hide content',
   查看内容: 'View content',
@@ -926,6 +929,7 @@ export const EN_MESSAGES = {
   '发布于 {date}': 'Published {date}',
   '更新包会下载到本机的下载文件夹，安装前需要退出 PiWork。':
     'The installer downloads to your Downloads folder; PiWork quits before installing it.',
+  对话导航: 'Conversation navigation',
   // ---- END ----
 } as const;
 

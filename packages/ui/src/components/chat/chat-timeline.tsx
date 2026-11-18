@@ -14,6 +14,7 @@ import { activateSession } from '@/lib/window-actions';
 import { suppressedToolCards } from '@/lib/tool-card-collapse';
 import { MessageBubble } from './message-bubble';
 import { PluginMessageBubble } from './plugin-message-bubble';
+import { ChatMinimap } from './chat-minimap';
 import { EmptyChat } from './empty-chat';
 import { StreamingIndicator } from './streaming-indicator';
 import { LoadingSpinner } from '@/components/common/loading-spinner';
@@ -287,6 +288,14 @@ export function ChatTimeline() {
 
   const virtuosoRef = useRef<VirtuosoHandle>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
+  // The minimap needs the scroller element itself (scroll position, viewport
+  // height). Virtuoso owns it; the callback ref is stable so Virtuoso never
+  // detaches/reattaches it on re-render.
+  const [chatScroller, setChatScroller] = useState<HTMLElement | null>(null);
+  const [minimapActive, setMinimapActive] = useState(false);
+  const handleScrollerRef = useCallback((element: HTMLElement | Window | null) => {
+    setChatScroller(element instanceof HTMLElement ? element : null);
+  }, []);
   // A version switch replaces the whole transcript; scroll once the new path
   // is on screen instead of at the moment the IPC call returns.
   const scrollAfterBranchRef = useRef(false);
@@ -765,10 +774,18 @@ export function ChatTimeline() {
     <div className="flex flex-col flex-1 relative">
       {streamError && <StreamErrorBanner error={streamError} onRetry={handleRetry} />}
 
-      <div className="flex-1">
+      <div
+        className="relative flex-1"
+        onPointerEnter={() => setMinimapActive(true)}
+        onPointerLeave={() => setMinimapActive(false)}
+      >
         <Virtuoso
           key={session?.id}
           ref={virtuosoRef}
+          scrollerRef={handleScrollerRef}
+          // The conversation rail is this list's scroll affordance; a native
+          // scrollbar next to it would be a second, redundant thumb.
+          className="[scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           data={chatItems}
           followOutput="smooth"
           atBottomStateChange={setIsAtBottom}
@@ -830,6 +847,13 @@ export function ChatTimeline() {
                 <StreamingIndicator />
               ) : null,
           }}
+        />
+        <ChatMinimap
+          items={chatItems}
+          virtuosoRef={virtuosoRef}
+          scroller={chatScroller}
+          active={minimapActive}
+          sessionId={activeSessionId}
         />
       </div>
 
