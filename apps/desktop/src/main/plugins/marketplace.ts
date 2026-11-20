@@ -108,9 +108,10 @@ export class PluginMarketplace {
       index = await this.fetchIndex(primary);
     } catch (err) {
       // A machine that cannot reach the hosted registry (offline, blocked,
-      // behind an unusual network) still deserves a working plugin center:
-      // fall back to the market snapshot shipped inside the install image.
-      // The last-resort entry is local, so this cannot loop.
+      // behind an unusual network) still deserves a working plugin center if
+      // the build ships a market snapshot — the default installer does not,
+      // but an offline/enterprise build may add one. The last-resort entry is
+      // local, so this cannot loop.
       const fallback = this.registry.bundledRegistryUrl;
       if (!fallback || fallback === primary) throw err;
       try {

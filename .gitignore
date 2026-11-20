@@ -42,6 +42,6 @@ bash-bundle/
 .mingit-tmp.zip
 MinGit*
 
-# Offline plugin-market snapshot downloaded by scripts/fetch-market.mjs
-# (the pack:* scripts) — never committed, it is a copy of published releases.
+# Optional plugin-market snapshot (scripts/fetch-market.mjs) — used by an
+# offline/enterprise build or a local test market, never committed.
 market-dist/
