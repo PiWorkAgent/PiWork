@@ -14,6 +14,7 @@ import { test } from 'node:test';
 import { comparePluginVersions } from '@pi/types';
 import {
   DEFAULT_REGISTRY_URL,
+  isRetryableNetworkError,
   resolveEntryUrl,
   undeclaredPermissions,
 } from '../src/main/plugins/marketplace.ts';
@@ -73,6 +74,20 @@ test('a package may not declare permissions the catalog left out', () => {
   ]);
   // Duplicates in a hand-written manifest collapse.
   assert.deepEqual(undeclaredPermissions([], ['network', 'network']), ['network']);
+});
+
+test('only a dead connection is worth downloading twice', () => {
+  // A stuck edge (accepted the socket, sent nothing) and transport failures
+  // are retried on a fresh connection.
+  assert.equal(isRetryableNetworkError(new Error('net::ERR_CONNECTION_RESET')), true);
+  assert.equal(
+    isRetryableNetworkError(new Error('download stalled: https://x/y.zip sent no data for 30s')),
+    true,
+  );
+  // The server answered — repeating the request only repeats the wait.
+  assert.equal(isRetryableNetworkError(new Error('fetch https://x/y.zip failed: HTTP 404')), false);
+  assert.equal(isRetryableNetworkError(new Error('integrity check failed for a (sha256 mismatch)')), false);
+  assert.equal(isRetryableNetworkError('not an error'), false);
 });
 
 test('a failed update rolls back only when there is a working copy to return to', () => {

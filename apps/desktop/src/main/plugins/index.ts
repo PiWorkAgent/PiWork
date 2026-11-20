@@ -216,7 +216,14 @@ export class PluginSystem {
         continue;
       }
       this.syncPluginSkills(plugin);
-      if (!plugin.manifest.backend) continue; // UI-only plugin — no process
+      if (!plugin.manifest.backend) {
+        // UI-only plugin — nothing to start, but it is live as soon as it is
+        // enabled. Leaving it 'registered' made the plugin center print 已注册
+        // after a restart, while the same plugin showed 运行中 when installed
+        // (activateResolved takes this path). One state, both routes.
+        this.registry.setState(plugin.manifest.id, 'active');
+        continue;
+      }
       await this.activate(plugin.manifest.id, plugin.rootPath, plugin.manifest.backend, appVersion);
     }
 
