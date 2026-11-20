@@ -127,7 +127,7 @@ PI_DEV_PLUGINS=/path/to/PiWork-Plugin-Browser pnpm dev:desktop:plugins
 https://github.com/PiWorkAgent/PiWork-Registry/releases/latest/download/index.json
 ```
 
-可以用环境变量 `PI_PLUGIN_REGISTRY`（或 `~/.pi/agent/plugins/_state.json` 的 `registry`）指向本地目录、镜像或私有市场。在线市场不可达时，应用回退到安装包内置的离线快照（只含官方插件）。
+可以用环境变量 `PI_PLUGIN_REGISTRY`（或 `~/.pi/agent/plugins/_state.json` 的 `registry`）指向本地目录、镜像或私有市场。安装包**不再内置插件快照**：装好应用后首次安装插件需要能访问市场源（默认是上面的 GitHub 地址），离线环境请配置镜像或本地市场。
 
 **两种启动方式，对应两种插件来源。** 插件的查找根按优先级 `dev > user` 解析：
 

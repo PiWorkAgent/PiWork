@@ -1,23 +1,25 @@
 #!/usr/bin/env node
 /**
- * Download the published plugin market into a directory, so the installer can
- * bundle an offline snapshot of it.
+ * Download the published plugin market into a directory.
  *
- * Why this exists: the plugins live in their own repositories now, aggregated
- * by `PiWorkAgent/PiWork-Registry` into one index. Packaging no longer
- * builds them, it fetches the newest registry release. The snapshot is what a
- * fresh install uses when the hosted registry is unreachable (see
- * PluginMarketplace's fallback), so a packaged app can install plugins without
- * any network at all.
+ * The default installer does NOT bundle a market: plugins are downloaded from
+ * their own GitHub releases on first use. This script exists for the optional
+ * offline / enterprise build — point electron-builder's extraResources at its
+ * output and the client uses the snapshot only when the hosted registry is
+ * unreachable — and for building a local market to test installs.
+ *
+ * Why this shape: the plugins live in their own repositories, aggregated by
+ * `PiWorkAgent/PiWork-Registry` into one index. Packaging no longer builds
+ * them, it fetches the newest registry release.
  *
  * Only OFFICIAL plugins are bundled: each entry was downloaded from the
- * publisher's own release, and shipping a community plugin inside the installer
+ * publisher's own release, and shipping a community plugin inside an installer
  * would redistribute third-party code the user never chose. Community plugins
  * stay online-only.
  *
  * Integrity: every zip is checked against the index's sha256. A mismatch
- * fails the packaging run — shipping a snapshot the app would refuse to
- * install is worse than failing here.
+ * fails the run — shipping a snapshot the app would refuse to install is worse
+ * than failing here.
  *
  * Usage:
  *   node scripts/fetch-market.mjs [--out <dir>] [--index <url>] [--tag <tag>] [--all]

@@ -70,10 +70,10 @@ export class PluginRegistry {
    * Explicit marketplace index override: `PI_PLUGIN_REGISTRY` for a dev
    * session, `_state.json#registry` for an installed app (a mirror, a private
    * registry, or a local market directory). Undefined means "use the default
-   * hosted registry" — the built-in fallback is NOT a default here: a release
-   * build always carries a market snapshot, and returning it would pin every
-   * install/update to whatever shipped with the app. `PluginMarketplace` uses
-   * it only when the hosted index is unreachable.
+   * hosted registry" — the built-in fallback is NOT a default here: returning
+   * it would pin every install/update to whatever shipped with the app.
+   * `PluginMarketplace` uses it only when the hosted index is unreachable, and
+   * only if the build ships a snapshot at all (the default installer does not).
    */
   get registryUrl(): string | undefined {
     return process.env.PI_PLUGIN_REGISTRY ?? this.stateFile.registry;

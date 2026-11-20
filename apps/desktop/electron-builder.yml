@@ -46,7 +46,7 @@ asarUnpack:
 # com.pi.files zip hits EBUSY there. See scripts/after-pack.cjs.
 afterPack: "./scripts/after-pack.cjs"
 
-# ── No built-in plugins, but a bundled offline market ──
+# ── No built-in plugins, and no bundled market ──
 #
 # Every plugin is distributed through the plugin marketplace and installed to
 # `~/.pi/agent/plugins/` (the registry's `user` root). A packaged app therefore
@@ -62,20 +62,16 @@ afterPack: "./scripts/after-pack.cjs"
 # If you are here because a packaged app has no plugins: that is the intended
 # state. Ship the plugin to the marketplace instead of bundling it.
 #
-# What IS bundled is the market itself (pack scripts run
-# scripts/fetch-market.mjs into `market-dist/` first): it downloads the registry
-# index plus each OFFICIAL plugin's release zip, verifies the sha256, and writes
-# index.json + the zips, copied to `<resources>/market/`. The marketplace falls
-# back to it only when the hosted registry is unreachable, so a fresh install
-# can still install plugins offline. The zips are referenced by paths relative
-# to the index — an absolute build-machine path would dangle after the install
-# moves.
+# The market itself (index.json + the official zips) used to be bundled under
+# `<resources>/market/` as an offline fallback. It is NOT anymore: it dominated
+# the installer size for a fallback almost nobody needed, and every plugin
+# already downloads from its own GitHub release. A packaged app installs
+# plugins online; an offline/enterprise build can add a market snapshot back
+# (scripts/fetch-market.mjs → extraResources) and the client will still use it
+# as a fallback.
 #
 # Windows still ships a shell bundle — that is a runtime dependency of the
 # agent's bash tool, not a plugin.
-extraResources:
-  - from: "market-dist/"
-    to: "market/"
 
 # Office document support used to ship here as a bundled `officecli` skill
 # plus a binary fetched at startup. It is now a plugin (com.pi.files) running
@@ -137,11 +133,6 @@ dmg:
 win:
   # Bundle MinGit BusyBox (shell + git + coreutils) so Windows users
   # get bash-like command execution out of the box.
-  #
-  # Platform-level extraResources OVERRIDE the top-level list rather than
-  # extending it — which is why the market is absent here: on Windows it is
-  # copied by afterPack instead (electron-builder's copy of the 21 MB
-  # com.pi.files zip fails with EBUSY on the runners). See scripts/after-pack.cjs.
   #
   # Build this target on Windows — macOS cross-builds are blocked twice:
   # rcedit needs wine and makensis ships x86_64-only, both unusable on
