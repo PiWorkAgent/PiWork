@@ -157,8 +157,13 @@ export const usePluginStore = create<PluginStoreState>()((set, get) => ({
         else await new Promise((r) => setTimeout(r, 400));
       }
     }
-    set({ plugins: plugins ?? [], loaded: true });
+    set({ plugins: plugins ?? [] });
+    // `loaded` gates the boot update check and the panel sync. It must flip
+    // only after `installed` is populated: the update check compares the
+    // catalog against the installed list, and flipping early made it run on an
+    // empty list and report zero updates (so the startup toast never fired).
     await refreshInstalled(set);
+    set({ loaded: true });
     await get().loadMutedPlugins();
   },
 

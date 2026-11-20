@@ -3,6 +3,7 @@ import { Columns2, Minus, PanelLeft, PanelRight, Square, X, ArrowLeftRight } fro
 import { cn } from '@/lib/utils';
 import { useUIStore } from '@/stores/ui-store';
 import { usePanelStore } from '@/stores/panel-store';
+import { countPluginUpdates, usePluginStore } from '@/stores/plugin-store';
 import { useI18n } from '@/i18n';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
@@ -100,6 +101,9 @@ export function LayoutToggles() {
   const toggleChatSide = useUIStore((s) => s.toggleChatSide);
   const panels = usePanelStore((s) => s.panels);
   const runtime = usePanelStore((s) => s.runtime);
+  // Plugin updates surface here when the right column is collapsed: the
+  // plugin center lives in that column, so its own mark is not on screen.
+  const pluginUpdates = usePluginStore((s) => countPluginUpdates(s.installed, s.catalog));
   const { t } = useI18n();
 
   // Only offer the toggle when its region has something to show. Web registers
@@ -115,6 +119,7 @@ export function LayoutToggles() {
   // Surface it on the toggle itself.
   const rightActivity = useMemo(() => {
     if (rightPanelOpen) return false;
+    if (pluginUpdates > 0) return true;
     return panels.some((p) => {
       if (p.region !== 'right' || p.hidden) return false;
       const rt = runtime[p.id];
@@ -127,7 +132,7 @@ export function LayoutToggles() {
         rt.activity === 'error'
       );
     });
-  }, [panels, runtime, rightPanelOpen]);
+  }, [panels, runtime, rightPanelOpen, pluginUpdates]);
 
   return (
     <>
