@@ -9,7 +9,7 @@
     "typecheck": "node scripts/typecheck.mjs"
   },
   "dependencies": {
-    "@pi/plugin-sdk": "^0.1.0"
+    "@pi/plugin-sdk": "npm:@weiqun789/plugin-sdk@^0.1.0"
   },
   "devDependencies": {
     "@types/node": "^26.6.3",

@@ -76,7 +76,7 @@ PiWork/
 │   ├── sdk-wrapper/      # SDK 封装层 (IPC/HTTP 双传输)
 │   ├── types/            # 共享类型定义
 │   ├── ui/               # 共享 UI 组件库 (布局、聊天、预览等)
-│   └── plugin-sdk/       # 插件后端 SDK（发布为 npm 包 @pi/plugin-sdk）
+│   └── plugin-sdk/       # 插件后端 SDK（npm: @weiqun789/plugin-sdk）
 ├── scripts/              # setup / dev-plugin / fetch-market 等辅助脚本
 ├── pnpm-workspace.yaml
 └── turbo.json
@@ -143,7 +143,7 @@ cd PiWork-Plugin-Browser && npm install && npm run build
 PI_DEV_PLUGINS=/path/to/PiWork-Plugin-Browser pnpm dev:desktop:plugins   # 在 PiWork 仓库里执行
 ```
 
-插件开发规范（manifest 字段、面板 API、后端 ctx、发布流程）见 [PiWork-Plugin-Docs](https://github.com/PiWorkAgent/PiWork-Plugin-Docs/blob/main/docs/plugin-dev-guide.md)，客户端里也可以通过「插件开发文档」面板阅读。插件后端依赖 `@pi/plugin-sdk`（npm 包，构建时被打进 `dist/main.mjs`）。
+插件开发规范（manifest 字段、面板 API、后端 ctx、发布流程）见 [PiWork-Plugin-Docs](https://github.com/PiWorkAgent/PiWork-Plugin-Docs/blob/main/docs/plugin-dev-guide.md)，客户端里也可以通过「插件开发文档」面板阅读。插件后端依赖 SDK（npm 包 `@weiqun789/plugin-sdk`，插件里以别名 `@pi/plugin-sdk` 安装，构建时被打进 `dist/main.mjs`）。
 
 ## 命令参考
 

@@ -1,5 +1,5 @@
 {
-  "name": "@pi/plugin-sdk",
+  "name": "@weiqun789/plugin-sdk",
   "version": "0.1.0",
   "type": "module",
   "description": "Backend runtime for pi plugins — handshake, capability calls, panel routing, error surfacing",

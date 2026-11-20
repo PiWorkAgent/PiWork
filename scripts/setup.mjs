@@ -4,9 +4,9 @@
  * then the package builds.
  *
  * Why the build is part of it: `apps/desktop` imports the built output of the
- * workspace packages (`@pi/types`, `@pi/ui`, `@pi/sdk-wrapper`,
- * `@pi/plugin-sdk`), and that output does not exist after `pnpm install`
- * alone — the app would fail to typecheck or start.
+ * workspace packages (`@pi/types`, `@pi/ui`, `@pi/sdk-wrapper` and the plugin
+ * SDK), and that output does not exist after `pnpm install` alone — the app
+ * would fail to typecheck or start.
  *
  * Plugins are NOT here anymore. Each one is its own repository under the
  * PiWorkAgent organization and builds in its own CI; the app installs them
