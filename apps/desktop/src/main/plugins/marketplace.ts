@@ -28,6 +28,30 @@ function errorText(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
+/** Abandon a download that has received nothing for this long. */
+const DOWNLOAD_IDLE_MS = 30_000;
+
+/**
+ * A silent attempt is retried on a fresh connection. Three goes, because on a
+ * congested link the failure is usually the edge the request landed on — a
+ * different one often answers — while each dead attempt costs only the idle
+ * timeout before the next starts.
+ */
+const DOWNLOAD_ATTEMPTS = 3;
+
+/** Pause between attempts, so a struggling server is not hammered. */
+const DOWNLOAD_RETRY_DELAY_MS = 1_000;
+
+/**
+ * Whether a failed fetch looks like a dead connection rather than an answer
+ * from the server. `net.fetch` reports transport failures as `net::ERR_*`; the
+ * stall guard above reports itself as "stalled". An HTTP status or a bad
+ * payload is the server's answer and must not be retried.
+ */
+export function isRetryableNetworkError(err: unknown): boolean {
+  return /stalled|net::ERR_/i.test(errorText(err));
+}
+
 /**
  * Catalog entry URLs may be relative: a bundled market ships its zips beside
  * the index, and the index cannot know the install path ahead of time (and a
@@ -152,14 +176,71 @@ export class PluginMarketplace {
   }
 
   private async fetchBytes(url: string): Promise<Buffer> {
-    if (/^https?:\/\//i.test(url)) {
-      const res = await net.fetch(url);
-      if (!res.ok) throw new Error(`fetch ${url} failed: HTTP ${res.status}`);
-      return Buffer.from(await res.arrayBuffer());
+    if (!/^https?:\/\//i.test(url)) {
+      // Local file path (dev/test registries)
+      if (!existsSync(url)) throw new Error(`registry file not found: ${url}`);
+      return readFileSync(url);
     }
-    // Local file path (dev/test registries)
-    if (!existsSync(url)) throw new Error(`registry file not found: ${url}`);
-    return readFileSync(url);
+    for (let attempt = 1; ; attempt++) {
+      try {
+        return await this.fetchRemote(url);
+      } catch (err) {
+        // A dead socket is worth another go; a server's answer (HTTP 404,
+        // integrity) is not — repeating it only makes the user wait longer for
+        // the same failure.
+        if (attempt >= DOWNLOAD_ATTEMPTS || !isRetryableNetworkError(err)) throw err;
+        console.warn(`[plugins] retrying ${url}: ${errorText(err)}`);
+        await new Promise((resolve) => setTimeout(resolve, DOWNLOAD_RETRY_DELAY_MS));
+      }
+    }
+  }
+
+  /**
+   * Fetch with a stall guard.
+   *
+   * A release asset served through a redirect can land on an edge that accepts
+   * the connection and then sends nothing; the socket stays ESTABLISHED and
+   * the OS may not give up for many minutes. Without a guard the install sits
+   * at "downloading" with no way forward but a restart. The timer is reset by
+   * every chunk, so a slow-but-alive transfer is never cut — only a silent one.
+   */
+  private async fetchRemote(url: string): Promise<Buffer> {
+    const controller = new AbortController();
+    let stalled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const bump = (): void => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        stalled = true;
+        controller.abort();
+      }, DOWNLOAD_IDLE_MS);
+    };
+    bump();
+    try {
+      const res = await net.fetch(url, { signal: controller.signal });
+      if (!res.ok) throw new Error(`fetch ${url} failed: HTTP ${res.status}`);
+      const reader = res.body?.getReader();
+      if (!reader) return Buffer.from(await res.arrayBuffer());
+      const chunks: Uint8Array[] = [];
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (value) {
+          chunks.push(value);
+          bump();
+        }
+      }
+      return Buffer.concat(chunks);
+    } catch (err) {
+      if (stalled) {
+        throw new Error(
+          `download stalled: ${url} sent no data for ${DOWNLOAD_IDLE_MS / 1000}s — check the network and retry`,
+        );
+      }
+      throw err;
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   /**
