@@ -283,7 +283,10 @@ export class PluginSystem {
   /**
    * After a registry re-scan (install/uninstall/enable), restore the runtime
    * state of unaffected plugins: scan() rebuilds entries as 'registered',
-   * but their backends are still running.
+   * but their backends are still running — and a UI-only plugin (no backend)
+   * has nothing to start, so it is 'active' as soon as it is enabled. Without
+   * the second loop a plugin like com.pi.devdocs flipped to 已注册 after any
+   * install/update and stayed there, while its panel kept working.
    */
   private refreshRuntimeStates(): void {
     for (const [pluginId, proc] of this.processes) {
@@ -291,6 +294,10 @@ export class PluginSystem {
       if (plugin && plugin.enabled && proc.running) {
         this.registry.setState(pluginId, 'active');
       }
+    }
+    for (const plugin of this.registry.all()) {
+      if (!plugin.enabled || plugin.manifest.backend) continue;
+      if (plugin.state === 'registered') this.registry.setState(plugin.manifest.id, 'active');
     }
   }
 
