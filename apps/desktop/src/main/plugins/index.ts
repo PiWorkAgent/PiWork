@@ -765,11 +765,18 @@ export class PluginSystem {
     this.removePluginSkills(pluginId);
     try {
       rmSync(plugin.rootPath, { recursive: true, force: true });
+      // The kept previous version is code too. Leaving it behind held tens of
+      // megabytes for a plugin that is no longer installed, and a later
+      // reinstall inherited a "previous version" it never upgraded from.
+      rmSync(this.registry.getPreviousDir(pluginId), { recursive: true, force: true });
       if (opts?.keepData === false) {
         rmSync(this.registry.getDataDir(pluginId), { recursive: true, force: true });
       }
       this.registry.scan();
       this.refreshRuntimeStates();
+      // After scan(), which re-reads the file: the preference dies with the
+      // copy it was set on, so a reinstall is not born disabled.
+      this.registry.forgetPlugin(pluginId);
       console.log(`[plugins] uninstalled ${pluginId} (data ${opts?.keepData === false ? 'removed' : 'kept'})`);
       this.emitEvent({ type: 'plugins-changed' });
       this.onExtensionsChanged?.();
