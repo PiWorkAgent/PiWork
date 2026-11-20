@@ -67,28 +67,27 @@ export class PluginRegistry {
   }
 
   /**
-   * Marketplace index URL. The environment variable wins, so a dev session can
-   * point at a throwaway registry without touching the on-disk state; the
-   * `_state.json` value is what a normal install uses. Last resort is the
-   * market bundled inside the install image, so a fresh install can install
-   * the first-party plugins offline.
+   * Explicit marketplace index override: `PI_PLUGIN_REGISTRY` for a dev
+   * session, `_state.json#registry` for an installed app (a mirror, a private
+   * registry, or a local market directory). Undefined means "use the default
+   * hosted registry" — the built-in fallback is NOT a default here: a release
+   * build always carries a market snapshot, and returning it would pin every
+   * install/update to whatever shipped with the app. `PluginMarketplace` uses
+   * it only when the hosted index is unreachable.
    */
   get registryUrl(): string | undefined {
-    return (
-      process.env.PI_PLUGIN_REGISTRY ??
-      this.stateFile.registry ??
-      this.bundledRegistryIndex()
-    );
+    return process.env.PI_PLUGIN_REGISTRY ?? this.stateFile.registry;
   }
 
   /**
    * The offline market shipped via extraResources at `<resources>/market`.
    * In dev, `process.resourcesPath` points into the Electron dist where no
-   * market exists, so this stays undefined and nothing changes. When the
-   * hosted registry (plugins.pi-coding.dev) goes live, its priority relative
-   * to the bundled copy is a deliberate choice to make then — env/state
-   * overrides keep winning either way.
+   * market exists, so this stays undefined and nothing changes.
    */
+  get bundledRegistryUrl(): string | undefined {
+    return this.bundledRegistryIndex();
+  }
+
   private bundledRegistryIndex(): string | undefined {
     try {
       const bundled = join(process.resourcesPath, 'market', 'index.json');

@@ -11,11 +11,11 @@
     "test": "node --experimental-transform-types --import ./tests/support/register.mjs --test tests/*.test.mjs",
     "clean": "rm -rf out dist",
     "start": "electron .",
-    "pack:mac": "pnpm build && node ../../scripts/build-market.mjs --skip-state --out market-dist && node scripts/prepare-pack.cjs && electron-builder --mac",
-    "pack:win": "pnpm build && node scripts/download-bash-bundle.cjs && node ../../scripts/build-market.mjs --skip-state --out market-dist && node scripts/prepare-pack.cjs && electron-builder --win",
-    "pack:win:cross": "pnpm build && node scripts/download-bash-bundle.cjs && node ../../scripts/build-market.mjs --skip-state --out market-dist && node scripts/prepare-pack.cjs && electron-builder --win --config.win.signAndEditExecutable=false",
-    "pack:linux": "pnpm build && node ../../scripts/build-market.mjs --skip-state --out market-dist && node scripts/prepare-pack.cjs && electron-builder --linux",
-    "pack:all": "pnpm build && node scripts/download-bash-bundle.cjs && node ../../scripts/build-market.mjs --skip-state --out market-dist && node scripts/prepare-pack.cjs && electron-builder --mac --win --linux"
+    "pack:mac": "pnpm build && node ../../scripts/fetch-market.mjs --out market-dist && node scripts/prepare-pack.cjs && electron-builder --mac",
+    "pack:win": "pnpm build && node scripts/download-bash-bundle.cjs && node ../../scripts/fetch-market.mjs --out market-dist && node scripts/prepare-pack.cjs && electron-builder --win",
+    "pack:win:cross": "pnpm build && node scripts/download-bash-bundle.cjs && node ../../scripts/fetch-market.mjs --out market-dist && node scripts/prepare-pack.cjs && electron-builder --win --config.win.signAndEditExecutable=false",
+    "pack:linux": "pnpm build && node ../../scripts/fetch-market.mjs --out market-dist && node scripts/prepare-pack.cjs && electron-builder --linux",
+    "pack:all": "pnpm build && node scripts/download-bash-bundle.cjs && node ../../scripts/fetch-market.mjs --out market-dist && node scripts/prepare-pack.cjs && electron-builder --mac --win --linux"
   },
   "dependencies": {
     "@earendil-works/pi-coding-agent": "^1.5.0",
@@ -44,5 +44,5 @@
     "@tailwindcss/postcss": "^4.3.4"
   },
   "author": "PiWork <pi@example.com>",
-  "homepage": "https://github.com/Anthonybuer182/PiWork"
+  "homepage": "https://github.com/PiWorkAgent/PiWork"
 }

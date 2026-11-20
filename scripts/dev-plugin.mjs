@@ -1,34 +1,52 @@
 #!/usr/bin/env node
 /**
- * Launch the desktop app with THIS repo's `plugins/` as a dev plugin root.
+ * Launch the desktop app with a plugin CHECKOUT as a dev plugin root.
  *
  * This is the PLUGIN-AUTHORING mode. `pnpm dev:desktop` (the default) runs the
  * customer path instead: plugins come from `~/.pi/agent/plugins/`, installed
  * and updated through the plugin center's market. Use this script when the
- * point is to see edits to `plugins/<id>/` immediately.
+ * point is to see edits to a plugin's source immediately.
+ *
+ * The plugins live in their own repositories (PiWorkAgent/PiWork-Plugin-*), so
+ * the checkout is named explicitly — there is no in-repo default anymore:
+ *
+ *   PI_DEV_PLUGINS=/path/to/PiWork-Plugin-Browser pnpm dev:desktop:plugins
  *
  * Why the env var exists: the plugin registry resolves roots by priority
  * (dev 3 > user 2), and `~/.pi/agent/plugins/` — the user root — always
- * shadows the repo checkout below it. So without `PI_DEV_PLUGINS`, edits to
- * `plugins/<id>/` are never loaded and the app silently runs whatever stale
- * copy sits in `~/.pi/agent/plugins/`.
- * That has repeatedly looked like "my change had no effect".
+ * shadows a checkout below it. So without `PI_DEV_PLUGINS`, edits are never
+ * loaded and the app silently runs whatever stale copy sits in
+ * `~/.pi/agent/plugins/`. That has repeatedly looked like "my change had no
+ * effect".
  *
- * Usage:  node scripts/dev-plugin.mjs [extra args for electron-vite]
+ * Usage:  PI_DEV_PLUGINS=<checkout> node scripts/dev-plugin.mjs [extra args for electron-vite]
  */
 import { spawn } from 'node:child_process';
 import { existsSync, readdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { homedir } from 'node:os';
 
 const REPO = fileURLToPath(new URL('..', import.meta.url));
-const DEV_ROOT = join(REPO, 'plugins');
+const DEV_ROOT = process.env.PI_DEV_PLUGINS ? resolve(process.env.PI_DEV_PLUGINS) : null;
+
+if (!DEV_ROOT) {
+  console.error('[dev-plugin] set PI_DEV_PLUGINS to a plugin checkout, e.g.:');
+  console.error('[dev-plugin]   git clone https://github.com/PiWorkAgent/PiWork-Plugin-Browser');
+  console.error('[dev-plugin]   PI_DEV_PLUGINS=/path/to/PiWork-Plugin-Browser pnpm dev:desktop:plugins');
+  process.exit(1);
+}
+
+if (!existsSync(join(DEV_ROOT, 'manifest.json'))) {
+  console.error(`[dev-plugin] ${DEV_ROOT} does not look like a plugin checkout (no manifest.json)`);
+  console.error('[dev-plugin] point PI_DEV_PLUGINS at the root of one plugin repository');
+  process.exit(1);
+}
 
 process.env.PI_DEV_PLUGINS = DEV_ROOT;
 
 // ── Make it visually unambiguous which root is live ────────────────────
-console.log(`[dev-plugin] plugin-authoring mode (repo plugins win over user copies)`);
+console.log(`[dev-plugin] plugin-authoring mode (checkout plugins win over user copies)`);
 console.log(`[dev-plugin] PI_DEV_PLUGINS = ${DEV_ROOT}`);
 
 try {

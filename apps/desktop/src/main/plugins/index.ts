@@ -24,6 +24,7 @@ import { PluginProcess, spawnBackend } from './plugin-process';
 import { takeToolSession } from './session-context';
 import { registerPluginProtocolHandler } from './protocol';
 import { PluginMarketplace } from './marketplace';
+import { shouldAutoRollback } from './install-policy';
 import type { AgentCustomTool } from '@main/agent-tools';
 import { toolContracts } from '@main/tools/contracts';
 
@@ -643,6 +644,10 @@ export class PluginSystem {
       const entry = await this.marketplace.getEntry(pluginId);
       if (!entry) return { ok: false, error: `"${pluginId}" not found in registry` };
 
+      // What is being replaced (null on a first install). Read before the swap:
+      // after it, the registry describes the new version.
+      const previousVersion = this.registry.get(pluginId)?.manifest.version ?? null;
+
       // Stop the running backend before replacing files.
       this.stopPlugin(pluginId);
 
@@ -653,6 +658,35 @@ export class PluginSystem {
       this.registry.scan();
       this.refreshRuntimeStates();
       await this.activateResolved(pluginId);
+
+      // activate() reports failure through registry state instead of throwing.
+      // An update whose new version cannot start is worth undoing on the spot:
+      // the alternative is a plugin that reads "错误" until the user finds the
+      // rollback button, and the working copy is already sitting in `.previous`.
+      if (
+        shouldAutoRollback({
+          previousVersion,
+          attemptedVersion: entry.version,
+          state: this.registry.get(pluginId)?.state,
+          hasPreviousCopy: this.registry.getPreviousVersion(pluginId) !== undefined,
+        })
+      ) {
+        const failedVersion = entry.version;
+        // The registry still holds the activation error; the rollback re-scan
+        // below replaces this entry, so read it first.
+        const failure = this.registry.get(pluginId)?.error;
+        // rollback() stops the failed backend, swaps the directories back and
+        // reactivates, emitting plugins-changed for the plugin center.
+        const rollback = await this.rollback(pluginId);
+        const restoredVersion = this.registry.get(pluginId)?.manifest.version ?? '?';
+        const restoredUp = rollback.ok && this.registry.get(pluginId)?.state === 'active';
+        const reason = failure ? ` (${failure})` : '';
+        const message = restoredUp
+          ? `"${pluginId}" ${failedVersion} did not start${reason} — rolled back to ${restoredVersion}`
+          : `"${pluginId}" ${failedVersion} did not start${reason}, and rolling back to ${restoredVersion} did not bring it up either`;
+        console.warn(`[plugins] install ${pluginId}@${failedVersion}: ${message}`);
+        return { ok: false, error: message, pluginId };
+      }
 
       console.log(`[plugins] installed ${pluginId}@${entry.version}`);
       this.emitEvent({ type: 'plugins-changed' });

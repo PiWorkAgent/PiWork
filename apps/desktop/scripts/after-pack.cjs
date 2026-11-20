@@ -78,7 +78,7 @@ module.exports = async function afterPack(context) {
   const to = path.join(context.appOutDir, 'resources', 'market');
 
   if (!fs.existsSync(path.join(from, 'index.json'))) {
-    throw new Error(`[after-pack] no plugin market at ${from} — run scripts/ci-build-market.mjs first`);
+    throw new Error(`[after-pack] no plugin market at ${from} — run scripts/fetch-market.mjs first`);
   }
 
   await copyDir(from, to);

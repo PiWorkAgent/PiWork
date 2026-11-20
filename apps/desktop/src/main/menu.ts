@@ -98,7 +98,7 @@ const MENU_LABELS: Record<MenuLanguage, Record<string, string>> = {
  * copy only because the menu bar exists before — and independently of — any
  * renderer.
  */
-const REPO_URL = 'https://github.com/Anthonybuer182/PiWork';
+const REPO_URL = 'https://github.com/PiWorkAgent/PiWork';
 
 /**
  * Issue forms pre-fill fields by their `id`, so the menu can hand the bug

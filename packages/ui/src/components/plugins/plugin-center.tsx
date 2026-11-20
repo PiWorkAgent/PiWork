@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Loader2, RefreshCw, Trash2, CircleAlert, CircleCheck, Settings2, ChevronDown, Puzzle, Undo2, Search, Info } from 'lucide-react';
 import type { MarketEntry, PluginInfo, PluginSettingInfo } from '@pi/types';
-import { describePermission, MIN_SUPPORTED_API_VERSION, PLUGIN_PROTOCOL_VERSION } from '@pi/types';
+import { describePermission, comparePluginVersions, MIN_SUPPORTED_API_VERSION, PLUGIN_PROTOCOL_VERSION } from '@pi/types';
 import { usePluginStore } from '@/stores/plugin-store';
 import { useI18n, type MessageKey } from '@/i18n';
 import { Button } from '@/components/ui/button';
@@ -163,8 +163,13 @@ function InstalledItem({ plugin }: { plugin: PluginInfo }) {
   // Update availability lives here on the installed row — installed plugins
   // are excluded from the market section below, so this badge is the only
   // place version drift shows. Dev copies are excluded from the comparison:
-  // their version tracks the checkout, not the market.
-  const updatable = manageable && marketEntry != null && marketEntry.version !== plugin.version;
+  // their version tracks the checkout, not the market. Semver, not string
+  // inequality: a catalog older than the installed copy is a downgrade, not
+  // an update.
+  const updatable =
+    manageable &&
+    marketEntry != null &&
+    comparePluginVersions(marketEntry.version, plugin.version) > 0;
 
   const sourceLabel = (source: string) =>
     SOURCE_LABEL[source] ? t(SOURCE_LABEL[source]) : source;
@@ -368,7 +373,7 @@ function InstalledItem({ plugin }: { plugin: PluginInfo }) {
               <DialogHeader>
                 <DialogTitle>{t('「{name}」是开发副本', { name: plugin.name })}</DialogTitle>
                 <DialogDescription>
-                  {t('它直接运行自仓库源码目录,不是安装副本,因此没有"卸载"可言。要移除:从仓库 plugins/ 删除对应目录,或把它从 dev 根里拿走;只想停用的话,用左侧的开关就够了。')}
+                  {t('它直接运行自插件源码目录(checkout),不是安装副本,因此没有"卸载"可言。要移除:把 PI_DEV_PLUGINS 指向别的 checkout;只想停用的话,用左侧的开关就够了。')}
                 </DialogDescription>
               </DialogHeader>
               <DialogFooter>
@@ -571,8 +576,9 @@ export function PluginCenter() {
     [searching, sortedInstalled, q],
   );
 
-  // Market order is the catalog's array order — build-market writes it, and
-  // for an official index that order IS the recommendation ranking.
+  // Market order is the catalog's array order — the registry writes it
+  // (official first), and for an official index that order IS the
+  // recommendation ranking.
   const visibleMarket = useMemo(() => {
     const installedIds = new Set(installed.map((p) => p.id));
     return catalog.filter(

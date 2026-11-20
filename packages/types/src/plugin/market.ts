@@ -31,6 +31,15 @@ export interface MarketEntry {
    * catalog that lies about this field does not get the plugin installed.
    */
   apiVersion?: number;
+  /**
+   * True for plugins maintained by this project. The registry sets it; a
+   * plugin's own release index has no opinion (undefined). Used when deciding
+   * what goes into the installer's offline snapshot — community plugins stay
+   * online-only.
+   */
+  official?: boolean;
+  /** Free-form registry categories, for browsing/filtering in the plugin center. */
+  categories?: string[];
 }
 
 /** Shape of the static index document. */
@@ -38,6 +47,33 @@ export interface MarketIndex {
   version: number;
   updated?: string;
   plugins: MarketEntry[];
+}
+
+/**
+ * Order two plugin versions the way the plugin center decides "can update".
+ *
+ * Returns 0 when either side is not a full `major.minor.patch`: an
+ * unrecognisable version must never read as an update, because acting on that
+ * comparison would offer a download for nothing. A pre-release (`1.0.0-dev.2`,
+ * the market's stamped development builds) sorts below its final release.
+ */
+export function comparePluginVersions(a: string, b: string): number {
+  const pa = parsePluginVersion(a);
+  const pb = parsePluginVersion(b);
+  if (!pa || !pb) return 0;
+  for (let i = 0; i < 3; i += 1) {
+    if (pa.nums[i] !== pb.nums[i]) return pa.nums[i] < pb.nums[i] ? -1 : 1;
+  }
+  if (pa.pre === pb.pre) return 0;
+  if (pa.pre === null) return 1;
+  if (pb.pre === null) return -1;
+  return pa.pre < pb.pre ? -1 : 1;
+}
+
+function parsePluginVersion(raw: string): { nums: [number, number, number]; pre: string | null } | null {
+  const m = /^[\s=v]*(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?/.exec(raw.trim());
+  if (!m) return null;
+  return { nums: [Number(m[1]), Number(m[2]), Number(m[3])], pre: m[4] ?? null };
 }
 
 /** Human-readable permission metadata shown in the consent dialog. */

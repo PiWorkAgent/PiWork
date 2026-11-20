@@ -120,6 +120,29 @@ function AppContent() {
     }
   }, [plugins, pluginsLoaded, setPluginPanels, setPluginCommands]);
 
+  // ── Plugin updates: one background catalog check per launch ──
+  // The plugin center pulls the catalog when it opens, which is too late to
+  // be called a notification. This check runs after discovery because it
+  // compares against the installed list; a toast plus the rail badge on the
+  // plugin center is the whole affordance — installing stays a click the
+  // user makes, so a new permission set still goes through consent.
+  const updatesChecked = useRef(false);
+  useEffect(() => {
+    if (!pluginsLoaded || updatesChecked.current) return;
+    updatesChecked.current = true;
+    // No cleanup that cancels the check: StrictMode mounts effects twice in
+    // development (mount → cleanup → mount), and the ref makes the second run
+    // a no-op — cancelling the first one would mean the toast never appears.
+    // The store and the toast queue are app-global, so completing after an
+    // unmount is harmless.
+    void usePluginStore
+      .getState()
+      .checkForUpdates()
+      .then((count) => {
+        if (count > 0) toast(t('有 {count} 个插件可更新,在插件中心更新', { count }));
+      });
+  }, [pluginsLoaded, t]);
+
   // ── Tell main which workspace is on screen ──
   // Which workspace is active is a view fact that only the renderer holds, and
   // the plugin kernel needs it to resolve the default target of `agent.*`

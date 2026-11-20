@@ -146,7 +146,10 @@ export function registerPluginIpcHandlers(
   ipcMain.handle('pi:plugin:market:catalog', async (_event, payload?: { force?: boolean }) => {
     try {
       const plugins = await system.catalog(payload?.force === true);
-      return { ok: true, plugins, registryUrl: system.marketplace.registryUrl };
+      // The URL that actually served the catalog: a fallback to the bundled
+      // snapshot must be visible in the plugin center, not silently presented
+      // as the hosted registry.
+      return { ok: true, plugins, registryUrl: system.marketplace.activeRegistryUrl };
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : String(err), plugins: [] };
     }

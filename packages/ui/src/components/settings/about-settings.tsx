@@ -28,7 +28,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 
-const REPO_URL = 'https://github.com/Anthonybuer182/PiWork';
+const REPO_URL = 'https://github.com/PiWorkAgent/PiWork';
 const RELEASES_URL = `${REPO_URL}/releases`;
 
 const IDLE_DOWNLOAD: UpdateDownloadState = {
