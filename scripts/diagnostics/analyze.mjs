@@ -2,6 +2,10 @@
  * Session trajectory analyzer — shared by the CLI report and the diagnostics
  * plugin.
  *
+ * MIRROR: the diagnostics plugin (PiWork-Plugin-Diagnostics, src/shared/
+ * analyze.mjs) carries its own copy — a plugin cannot import across
+ * repositories. Keep the analyzer code below identical in both copies.
+ *
  * Pure: takes session JSONL text, returns a JSON-safe report. No printing, no
  * filesystem discovery (the one convenience wrapper reads a path).
  *
