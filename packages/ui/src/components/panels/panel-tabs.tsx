@@ -18,6 +18,7 @@ import {
   type PanelEntry,
   type PanelRegion,
 } from '@/stores/panel-store';
+import { countPluginUpdates, usePluginStore } from '@/stores/plugin-store';
 import { freezeSlots, clearFreeze } from '@/stores/overlay-freeze-store';
 import { useI18n } from '@/i18n';
 import { panelTitle } from './panel-title';
@@ -54,6 +55,12 @@ export function PanelTabs({ region = 'right' }: { region?: PanelRegion }) {
   const setFocused = usePanelStore((s) => s.setFocused);
   const setTabOrder = usePanelStore((s) => s.setTabOrder);
   const [pickerOpen, setPickerOpen] = useState(false);
+  // The plugin center lives in the right region, so it has no rail button to
+  // carry a badge. The picker trigger is the always-visible affordance that
+  // opens it — the mark goes there.
+  const pluginUpdates = usePluginStore((s) =>
+    region === 'right' ? countPluginUpdates(s.installed, s.catalog) : 0,
+  );
   const [dragId, setDragId] = useState<string | null>(null);
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
   // Invalidate a freeze/menu-open pair whose menu was closed while the
@@ -189,9 +196,15 @@ export function PanelTabs({ region = 'right' }: { region?: PanelRegion }) {
           aria-label={t('打开插件')}
           title={t('打开插件')}
           data-panel-picker-trigger={region}
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+          className="relative flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
         >
           <Plus className="h-4 w-4" />
+          {pluginUpdates > 0 && (
+            <span
+              data-plugin-updates="picker"
+              className="absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full bg-emerald-500 ring-2 ring-background"
+            />
+          )}
         </button>
       </PopoverTrigger>
       <PopoverContent
@@ -322,6 +335,7 @@ function SplitTabHeader({
 }) {
   const { t } = useI18n();
   const runtime = usePanelStore((s) => s.runtime);
+  const pluginUpdates = usePluginStore((s) => countPluginUpdates(s.installed, s.catalog));
   const setFocused = usePanelStore((s) => s.setFocused);
   const closeTab = usePanelStore((s) => s.closeTab);
   const splitTab = usePanelStore((s) => s.splitTab);
@@ -476,9 +490,15 @@ function SplitTabHeader({
                       aria-label={t('打开插件')}
                       title={t('打开插件')}
                       data-group-add={group.id}
-                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+                      className="relative flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
                     >
                       <Plus className="h-4 w-4" />
+                      {pluginUpdates > 0 && (
+                        <span
+                          data-plugin-updates="picker"
+                          className="absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full bg-emerald-500 ring-2 ring-background"
+                        />
+                      )}
                     </button>
                   </PopoverTrigger>
                   <PopoverContent

@@ -146,6 +146,7 @@ function InstalledItem({ plugin }: { plugin: PluginInfo }) {
   const installPhases = usePluginStore((s) => s.installPhases);
   const mutedPlugins = usePluginStore((s) => s.mutedPlugins);
   const setPluginMuted = usePluginStore((s) => s.setPluginMuted);
+  const marketErrors = usePluginStore((s) => s.marketErrors);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [keepData, setKeepData] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -237,6 +238,14 @@ function InstalledItem({ plugin }: { plugin: PluginInfo }) {
         {plugin.error ? (
           <div className="mt-1 flex items-center gap-1 text-xs text-destructive">
             <CircleAlert className="h-3 w-3" />{plugin.error}
+          </div>
+        ) : null}
+        {/* An install/update/rollback failure on an INSTALLED plugin has no
+            catalog row to land on — without this it looks like the button did
+            nothing (e.g. an update refused for under-reported permissions). */}
+        {marketErrors[plugin.id] ? (
+          <div className="mt-1 flex items-center gap-1 text-xs text-destructive" data-market-error>
+            <CircleAlert className="h-3 w-3" />{marketErrors[plugin.id]}
           </div>
         ) : null}
         {plugin.permissions.length > 0 ? (
