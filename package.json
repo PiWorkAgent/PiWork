@@ -12,7 +12,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/Anthonybuer182/PiWork.git"
+    "url": "https://github.com/PiWorkAgent/PiWork.git"
   },
   "engines": {
     "node": ">=20.19.0",
@@ -20,15 +20,12 @@
   },
   "scripts": {
     "setup": "node scripts/setup.mjs",
-    "setup:market": "node scripts/setup.mjs --market",
-    "verify:vendor": "node plugins/com.pi.files/scripts/vendor-genoffice.mjs --verify",
     "dev:web": "turbo run dev --filter=@pi/web",
     "dev:desktop": "turbo run dev --filter=@pi/desktop",
     "dev:desktop:plugins": "node scripts/dev-plugin.mjs",
     "dev:desktop:raw": "turbo run dev --filter=@pi/desktop",
     "diag:sessions": "node scripts/diagnostics/session-report.mjs",
     "diag:sessions:all": "node scripts/diagnostics/session-report.mjs --all --limit 500",
-    "plugins:publish": "node scripts/publish-plugins.mjs",
     "build": "turbo run build",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
@@ -58,7 +55,6 @@
     }
   },
   "devDependencies": {
-    "adm-zip": "^0.6.1",
     "prettier": "^3.9.10",
     "turbo": "^2.11.10",
     "typescript": "^5.9.3"

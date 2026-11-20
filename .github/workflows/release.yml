@@ -56,39 +56,27 @@ jobs:
       - name: Test
         run: pnpm test
 
-  # ── 插件市场：构建一次，四个平台共用 ────────────────────────────────
-  # 首方插件的面板产物（plugins/*/ui-dist）是 gitignore 的构建输出，干净
-  # checkout 里没有；而每个打包 job 各装一遍依赖太贵（com.pi.files 一个就
-  # 约 790 MB，乘四个 runner）。所以在这里构建一次，打包 job 下载同一个
-  # artifact —— 之前那套「构建不出来就空市场出包」的兜底因此可以删掉：
-  # 一个没有插件的安装包不如出包失败。
+  # ── 插件市场：下载发布好的版本，四个平台共用 ────────────────────────
+  # 首方插件已拆成每插件一个仓库（PiWorkAgent/PiWork-Plugin-*），由
+  # PiWorkAgent/PiWork-Registry 聚合索引。这里不再构建插件，只把 registry
+  # 最新发布的 index.json 及各插件的 zip 下载下来打进安装包（只含 official
+  # 条目的离线快照）：拿不到就是流程出错，应当出包失败 —— 一个没有插件的
+  # 安装包不如出包失败。
   market:
-    name: Build plugin market
+    name: Fetch plugin market
     needs: verify
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
-
-      - uses: pnpm/action-setup@v6
 
       - uses: actions/setup-node@v7
         with:
           node-version: 24
-          cache: pnpm
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      # 插件通过 file:../../packages/plugin-sdk 依赖宿主包，而它的入口是
-      # packages/*/dist —— 必须先把宿主包构建出来，插件才装得上、编得过。
-      - name: Build packages
-        run: pnpm build
-
-      # 装插件依赖 + 构建 + 打包成市场，三步合成一个脚本：
-      # Windows 打包 job 要就地构建同一份东西，两处共用同一个实现。
-      - name: Build plugins and market index
-        run: node scripts/ci-build-market.mjs market-dist
+      # 校验每个 zip 的 sha256；下载失败或校验不符都直接失败。
+      - name: Fetch the published plugin market
+        run: node scripts/fetch-market.mjs --out market-dist
 
       # 空市场的安装包看起来和正常的一样，只是用户装上后发现什么都没有。
       - name: Assert the market is not empty
@@ -183,15 +171,14 @@ jobs:
 
       # Windows 不走 artifact：从 artifact 解出来的 zip 会被实时防护持有句柄，
       # electron-builder 把它复制进 resources/market/ 时稳定 EBUSY（重试也过不去，
-      # 而且只有 com.pi.files 那个 21 MB 的包会中招）。
-      - name: Build the plugin market in place (Windows)
+      # 而且只有 com.pi.files 那个大包会中招）。
+      - name: Fetch the plugin market in place (Windows)
         if: matrix.platform == 'win'
-        run: node scripts/ci-build-market.mjs apps/desktop/market-dist
+        run: node scripts/fetch-market.mjs --out apps/desktop/market-dist
 
       # 再把市场整体复制一遍。两个作用：
       # 1) 读一遍源文件 —— 如果这一步就失败，说明锁在源文件上，日志会写清楚；
-      # 2) electron-builder 接下来读到的是我们刚用普通文件 API 写出来的副本，
-      #    而不是 build-market 里 adm-zip 产生的那些。
+      # 2) electron-builder 接下来读到的是我们刚用普通文件 API 写出来的副本。
       - name: 'Windows: re-materialise the market'
         if: matrix.platform == 'win'
         shell: pwsh

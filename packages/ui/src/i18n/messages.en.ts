@@ -259,14 +259,16 @@ export const EN_MESSAGES = {
   '在会话里显示插件消息': 'Show plugin messages in conversations',
   '已安装({count})': 'Installed ({count})',
   '可更新({from} → {to})': 'Update available ({from} → {to})',
+  '有 {count} 个插件可更新,在插件中心更新':
+    '{count} plugin update(s) available — open the plugin centre',
   '回到 v{version}': 'Back to v{version}',
   '卸载「{name}」?': 'Uninstall “{name}”?',
   '将删除插件代码目录。插件数据默认保留,重装后可恢复。':
     'This deletes the plugin’s code directory. Plugin data is kept by default and restored on reinstall.',
   '保留插件数据(plugins-data/{id})': 'Keep plugin data (plugins-data/{id})',
   '「{name}」是开发副本': '“{name}” is a dev copy',
-  '它直接运行自仓库源码目录,不是安装副本,因此没有"卸载"可言。要移除:从仓库 plugins/ 删除对应目录,或把它从 dev 根里拿走;只想停用的话,用左侧的开关就够了。':
-    'It runs straight from the repository source tree, not from an installed copy, so there is nothing to uninstall. To remove it, delete the directory under plugins/ or drop it from the dev root; to merely stop it, the switch on the left is enough.',
+  '它直接运行自插件源码目录(checkout),不是安装副本,因此没有"卸载"可言。要移除:把 PI_DEV_PLUGINS 指向别的 checkout;只想停用的话,用左侧的开关就够了。':
+    'It runs straight from the plugin source checkout, not from an installed copy, so there is nothing to uninstall. To remove it, point PI_DEV_PLUGINS at another checkout; to merely stop it, the switch on the left is enough.',
   '当前加载的是仓库开发副本，插件中心不能替换或卸载它。测试客户的安装/更新路径请用':
     'This is the repository dev copy, so the plugin centre cannot replace or uninstall it. To test the customer install/update path, use',
   '安装「{name}」': 'Install “{name}”',

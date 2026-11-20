@@ -1,6 +1,5 @@
 node_modules/
 dist/
-!plugins/*/dist/
 dist-ssr/
 out/
 release/
@@ -36,12 +35,6 @@ pnpm-debug.log*
 # Keep build icons
 !apps/desktop/build/icon.png
 !apps/desktop/build/icon.icns
-# Keep vendored plugin assets (genoffice ribbon icons/textures). Without this
-# the `*.png` rule above silently drops 75 files that the com.pi.files panel
-# imports statically — a clean clone then fails `npm run build` with
-# "Could not resolve .../icon-editor.png".
-!plugins/*/vendor/**/*.png
-!plugins/*/vendor/**/*.jpg
 # Claude
 .claude/
 # Bash bundle (downloaded during Windows build)
@@ -49,5 +42,6 @@ bash-bundle/
 .mingit-tmp.zip
 MinGit*
 
-# Local plugin market fixture (scripts/build-market.mjs)
+# Offline plugin-market snapshot downloaded by scripts/fetch-market.mjs
+# (the pack:* scripts) — never committed, it is a copy of published releases.
 market-dist/

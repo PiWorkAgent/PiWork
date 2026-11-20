@@ -37,7 +37,7 @@ import {
 } from './release';
 
 const DEFAULT_API_BASE = 'https://api.github.com';
-const DEFAULT_REPO = 'Anthonybuer182/PiWork';
+const DEFAULT_REPO = 'PiWorkAgent/PiWork';
 const RELEASES_PAGE = `https://github.com/${DEFAULT_REPO}/releases`;
 const UPDATE_DIR_NAME = 'PiWork-updates';
 const CHECK_TIMEOUT_MS = 20_000;

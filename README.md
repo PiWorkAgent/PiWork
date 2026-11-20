@@ -4,9 +4,9 @@
 
 ## 下载
 
-[![下载最新版本](https://img.shields.io/badge/下载-最新版本-2ea44f?style=for-the-badge)](https://github.com/Anthonybuer182/PiWork/releases/latest)
+[![下载最新版本](https://img.shields.io/badge/下载-最新版本-2ea44f?style=for-the-badge)](https://github.com/PiWorkAgent/PiWork/releases/latest)
 
-点上面按钮（或直接打开 [Releases](https://github.com/Anthonybuer182/PiWork/releases/latest)），按平台取安装包：
+点上面按钮（或直接打开 [Releases](https://github.com/PiWorkAgent/PiWork/releases/latest)），按平台取安装包：
 
 | 平台 | 安装包 |
 |------|--------|
@@ -75,12 +75,14 @@ PiWork/
 ├── packages/
 │   ├── sdk-wrapper/      # SDK 封装层 (IPC/HTTP 双传输)
 │   ├── types/            # 共享类型定义
-│   └── ui/               # 共享 UI 组件库 (布局、聊天、预览等)
-├── plugins/              # 首方插件 (不属 pnpm workspace，见「插件」一节)
-├── scripts/              # setup / dev-plugin / build-market 等辅助脚本
+│   ├── ui/               # 共享 UI 组件库 (布局、聊天、预览等)
+│   └── plugin-sdk/       # 插件后端 SDK（npm: @weiqun789/plugin-sdk）
+├── scripts/              # setup / dev-plugin / fetch-market 等辅助脚本
 ├── pnpm-workspace.yaml
 └── turbo.json
 ```
+
+插件不在本仓库：每个首方插件是独立仓库（见下文「插件」），通过插件市场安装和更新。
 
 ## 环境要求
 
@@ -90,53 +92,58 @@ PiWork/
 ## 快速开始
 
 ```bash
-# 安装依赖（含插件，插件不属 workspace，必须走这一步）
+# 安装依赖并构建 packages/*/dist（应用直接引用这些产物）
 pnpm setup
-
-# 把首方插件装进用户目录 —— 客户路径运行的前提
-# （等价于 setup:market + 在插件中心安装）
-pnpm plugins:publish --install
 
 # 启动 Web 开发服务器 (localhost:5173)
 # Web 端内置 API 代理，无需单独启动后端服务
 pnpm dev:web
 
-# 启动 Electron 桌面应用（客户路径：加载 ~/.pi/agent/plugins）
+# 启动 Electron 桌面应用：插件从市场安装到 ~/.pi/agent/plugins
 pnpm dev:desktop
 
-# 只想改插件、要求改动立刻生效时，改用仓库插件模式
-pnpm dev:desktop:plugins
+# 改插件源码（插件已拆到独立仓库，见「插件」一节）
+PI_DEV_PLUGINS=/path/to/PiWork-Plugin-Browser pnpm dev:desktop:plugins
 ```
 
-`pnpm setup` 会依次做：根依赖安装 → 根构建 → 逐个插件的依赖安装与构建 → 校验 vendor 资源完整性。首次运行约需下载 1 GB 的插件依赖，请耐心等待。
+`pnpm setup` 只做两件事：根依赖安装、根构建。插件依赖不再随本仓库安装。
 
 ## 插件
 
-桌面端的左右侧栏面板来自 `plugins/` 下的首方插件。这套机制有几个容易踩的坑，搭建时请留意：
+插件是**独立的发布单位**，不放在本仓库。每个插件一个 GitHub 仓库，发布产物是 GitHub Release 里的 `zip + index.json`；一个 registry 仓库把所有插件的 release 聚合成客户端读取的市场索引。
 
-**`plugins/` 不属 pnpm workspace。** `pnpm-workspace.yaml` 只包含 `packages/*` 和 `apps/*`，所以根目录的 `pnpm install` 和 `turbo run build` 都不会碰插件。每个插件是独立的 npm 项目，自带 `package-lock.json`，需要单独安装和构建——这正是 `pnpm setup` 替你做的事。
+| 仓库 | 作用 |
+| --- | --- |
+| [PiWork-Plugin-Browser](https://github.com/PiWorkAgent/PiWork-Plugin-Browser) | 浏览器自动化 `com.pi.browser` |
+| [PiWork-Plugin-Files](https://github.com/PiWorkAgent/PiWork-Plugin-Files) | 文件查看器 `com.pi.files` |
+| [PiWork-Plugin-Tasks](https://github.com/PiWorkAgent/PiWork-Plugin-Tasks) | 日程本 `com.pi.tasks` |
+| [PiWork-Plugin-Docs](https://github.com/PiWorkAgent/PiWork-Plugin-Docs) | 插件开发文档 `com.pi.devdocs`（开发指南也在这里） |
+| [PiWork-Plugin-Diagnostics](https://github.com/PiWorkAgent/PiWork-Plugin-Diagnostics) | 运行诊断 `com.pi.diagnostics` |
+| [PiWork-Registry](https://github.com/PiWorkAgent/PiWork-Registry) | 市场索引（官方 + 社区插件） |
 
-**面板入口是构建产物。** `com.pi.files`（文件查看器）和 `com.pi.tasks`（日程本）的 `manifest.json` 里，面板入口指向 `./ui-dist/panel/index.html`，而 `ui-dist/` 被插件自己的 `.gitignore` 忽略。不构建就没有面板可显示，只会看到插件静默消失。
+客户端读的市场索引：
+
+```
+https://github.com/PiWorkAgent/PiWork-Registry/releases/latest/download/index.json
+```
+
+可以用环境变量 `PI_PLUGIN_REGISTRY`（或 `~/.pi/agent/plugins/_state.json` 的 `registry`）指向本地目录、镜像或私有市场。在线市场不可达时，应用回退到安装包内置的离线快照（只含官方插件）。
 
 **两种启动方式，对应两种插件来源。** 插件的查找根按优先级 `dev > user` 解析：
 
 - **`pnpm dev:desktop`（客户路径）**：不设开发根，应用只读 `~/.pi/agent/plugins/`。安装、更新、回滚都在插件中心走真实市场流程（sha256 校验、权限确认、原子替换）。这是验证"用户实际会看到什么"的方式。
-- **`pnpm dev:desktop:plugins`（插件开发）**：通过 `PI_DEV_PLUGINS` 把本仓库设为开发插件根，直接加载 `plugins/`，改代码立刻生效。它会遮蔽用户目录里的同名副本，所以不能用来测安装/更新流程。
+- **`pnpm dev:desktop:plugins`（插件开发）**：把 `PI_DEV_PLUGINS` 指向某个插件仓库的 checkout，直接加载源码，改代码立刻生效。它会遮蔽用户目录里的同名副本，所以不能用来测安装/更新流程。
 - `pnpm dev:desktop:raw` 是客户路径的历史别名，等价于 `pnpm dev:desktop`。
 
-**从仓库发布到用户目录。** 两个目录不会自动同步。标准流程是重新打市场包，再在插件中心安装/更新：
+**开发一个插件**（以 Browser 为例）：
 
 ```bash
-pnpm plugins:publish                 # 构建 + 重新打市场包（默认带开发版本后缀）
-pnpm plugins:publish --only com.pi.browser
-pnpm plugins:publish --install       # 额外无界面安装到 ~/.pi/agent/plugins
+git clone https://github.com/PiWorkAgent/PiWork-Plugin-Browser
+cd PiWork-Plugin-Browser && npm install && npm run build
+PI_DEV_PLUGINS=/path/to/PiWork-Plugin-Browser pnpm dev:desktop:plugins   # 在 PiWork 仓库里执行
 ```
 
-默认的版本后缀（`0.7.1-dev.<时间>`）让插件中心显示「更新」并保留 `.previous`，可以测试回滚；加 `--no-stamp` 则保持原版本号，插件中心显示「重装」。
-
-**vendor 资源不可重建，只能靠 git。** `com.pi.files` 内嵌了一份 GenOffice 引擎（`vendor/genoffice/`，Apache-2.0）。它由 `vendor-genoffice.mjs` 从外部源码复制而来，而那份源码是临时路径、不随仓库保存，所以这份 vendor 树**删了就回不来**。`vendor/UPSTREAM.json` 登记了每个文件的 sha256；`pnpm verify:vendor` 用它校验本地树是否完整。
-
-**可选的本地插件市场。** `pnpm setup:market` 会把插件打成 zip 并在 `market-dist/` 建一个本地市场，把 `~/.pi/agent/plugins/_state.json` 的 `registry` 指向它。它只准备市场、不安装；安装仍在插件中心完成（或 `pnpm plugins:publish --install`）。
+插件开发规范（manifest 字段、面板 API、后端 ctx、发布流程）见 [PiWork-Plugin-Docs](https://github.com/PiWorkAgent/PiWork-Plugin-Docs/blob/main/docs/plugin-dev-guide.md)，客户端里也可以通过「插件开发文档」面板阅读。插件后端依赖 SDK（npm 包 `@weiqun789/plugin-sdk`，插件里以别名 `@pi/plugin-sdk` 安装，构建时被打进 `dist/main.mjs`）。
 
 ## 命令参考
 
@@ -144,14 +151,12 @@ pnpm plugins:publish --install       # 额外无界面安装到 ~/.pi/agent/plug
 
 | 命令 | 说明 |
 |------|------|
-| `pnpm setup` | 一键搭建：根安装/构建 + 逐个插件安装/构建 + vendor 校验 |
+| `pnpm setup` | 一键搭建：根安装 + 根构建 |
 | `pnpm dev:web` | 启动 Web 应用 (localhost:5173) |
 | `pnpm dev:desktop` | 启动 Electron 桌面应用（客户路径，读 `~/.pi/agent/plugins/`） |
-| `pnpm dev:desktop:plugins` | 启动 Electron 桌面应用（开发模式，加载本仓库的 `plugins/`） |
+| `pnpm dev:desktop:plugins` | 加载插件 checkout（需设 `PI_DEV_PLUGINS=/path/to/PiWork-Plugin-*`） |
 | `pnpm dev:desktop:raw` | 客户路径的历史别名，等价于 `pnpm dev:desktop` |
-| `pnpm setup:market` | 构建本地插件市场（不安装） |
-| `pnpm plugins:publish` | 构建插件 + 重新打市场包（`--only`、`--install`、`--no-stamp`） |
-| `pnpm verify:vendor` | 校验内嵌 GenOffice 资源是否完整（对照 `UPSTREAM.json` 的 sha256） |
+| `pnpm diag:sessions` | 生成会话诊断报告 |
 
 ### 构建与打包
 

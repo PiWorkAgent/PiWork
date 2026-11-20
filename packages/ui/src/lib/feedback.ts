@@ -1,4 +1,4 @@
-const REPO_URL = 'https://github.com/Anthonybuer182/PiWork';
+const REPO_URL = 'https://github.com/PiWorkAgent/PiWork';
 
 export type FeedbackPlatform = 'darwin' | 'win32' | 'linux' | null;
 

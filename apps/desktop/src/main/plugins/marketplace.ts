@@ -9,8 +9,64 @@ import type { PluginRegistry } from './registry';
 import { satisfiesVersion } from './semver';
 import { HOST_ENGINE_KEY } from './registry';
 
-/** Placeholder official registry; override via _state.json#registry for dev. */
-export const DEFAULT_REGISTRY_URL = 'https://plugins.pi-coding.dev/index.json';
+/**
+ * The official registry: a static index published as an asset on the
+ * `PiWork-Registry` repository's newest GitHub release. It is an AGGREGATE —
+ * one entry per plugin, each pointing at that plugin's own repository release.
+ * `releases/latest/download` redirects to the asset of the latest stable
+ * release, so the URL is stable across releases; downloads go through the
+ * plain web endpoint, not the GitHub API, so there is no unauthenticated rate
+ * limit to exhaust.
+ *
+ * Overridden by `PI_PLUGIN_REGISTRY` or `_state.json#registry` for dev, a
+ * mirror, or a private registry.
+ */
+export const DEFAULT_REGISTRY_URL =
+  'https://github.com/PiWorkAgent/PiWork-Registry/releases/latest/download/index.json';
+
+function errorText(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+/**
+ * Catalog entry URLs may be relative: a bundled market ships its zips beside
+ * the index, and the index cannot know the install path ahead of time (and a
+ * hosted market may want to move its zips with the index — including a
+ * GitHub release, where the index and its zips are sibling assets of the same
+ * tag). Absolute paths and full URLs pass through untouched.
+ */
+export function resolveEntryUrl(indexUrl: string, url: string): string {
+  if (isAbsolute(url) || /^[a-z][a-z0-9+.-]*:/i.test(url)) return url;
+  if (/^https?:/i.test(indexUrl)) {
+    try {
+      return new URL(url, indexUrl).toString();
+    } catch {
+      /* malformed base — fall through to the path join */
+    }
+  }
+  return join(dirname(indexUrl), url);
+}
+
+/**
+ * Permissions the package declares that the catalog entry did not.
+ *
+ * The consent dialog is built from `MarketEntry.permissions` (the catalog),
+ * while the host enforces `manifest.permissions` from inside the zip
+ * (capability-hub). For the official registry the two are generated from the
+ * same manifest, so they agree. A third-party entry can UNDER-report — the
+ * user then consents to less than the plugin actually gets, which is the one
+ * failure mode this check closes.
+ *
+ * Exact strings, not base names: scoped `network:api.example.com` and unscoped
+ * `network` are different grants, so they must not be treated as equal.
+ */
+export function undeclaredPermissions(
+  entryPermissions: string[] | undefined,
+  manifestPermissions: string[] | undefined,
+): string[] {
+  const declared = new Set(entryPermissions ?? []);
+  return [...new Set(manifestPermissions ?? [])].filter((p) => !declared.has(p)).sort();
+}
 
 /**
  * Static-index marketplace: fetch catalog, download + verify zips,
@@ -19,16 +75,24 @@ export const DEFAULT_REGISTRY_URL = 'https://plugins.pi-coding.dev/index.json';
  */
 export class PluginMarketplace {
   private readonly registry: PluginRegistry;
-  private indexCache: { at: number; index: MarketIndex } | null = null;
+  private indexCache: { at: number; url: string; index: MarketIndex } | null = null;
   private readonly cacheMs = 60_000;
 
   constructor(registry: PluginRegistry) {
     this.registry = registry;
   }
 
-  /** Registry index URL: _state.json#registry or the default. */
+  /** Registry index URL: _state.json#registry, the env override, or the default. */
   get registryUrl(): string {
     return this.registry.registryUrl ?? DEFAULT_REGISTRY_URL;
+  }
+
+  /**
+   * Where the last successful catalog fetch actually came from. Normally
+   * `registryUrl`; the bundled snapshot when the hosted index was unreachable.
+   */
+  get activeRegistryUrl(): string {
+    return this.indexCache?.url ?? this.registryUrl;
   }
 
   async catalog(force = false): Promise<MarketEntry[]> {
@@ -37,8 +101,29 @@ export class PluginMarketplace {
     }
     // Re-read state so registry URL changes apply without a restart.
     this.registry.loadState();
-    const index = await this.fetchIndex(this.registryUrl);
-    this.indexCache = { at: Date.now(), index };
+    const primary = this.registryUrl;
+    let url = primary;
+    let index: MarketIndex;
+    try {
+      index = await this.fetchIndex(primary);
+    } catch (err) {
+      // A machine that cannot reach the hosted registry (offline, blocked,
+      // behind an unusual network) still deserves a working plugin center:
+      // fall back to the market snapshot shipped inside the install image.
+      // The last-resort entry is local, so this cannot loop.
+      const fallback = this.registry.bundledRegistryUrl;
+      if (!fallback || fallback === primary) throw err;
+      try {
+        index = await this.fetchIndex(fallback);
+        url = fallback;
+        console.warn(`[plugins] registry ${primary} unreachable (${errorText(err)}); using bundled market`);
+      } catch {
+        // Report the hosted failure, not the fallback's: that is the one the
+        // user can act on (network / mirror setting).
+        throw err;
+      }
+    }
+    this.indexCache = { at: Date.now(), url, index };
     return index.plugins;
   }
 
@@ -52,21 +137,17 @@ export class PluginMarketplace {
     if (!index || !Array.isArray(index.plugins)) {
       throw new Error('invalid registry index: missing plugins[]');
     }
-    return index;
-  }
-
-  /**
-   * Catalog entry URLs may be relative: a bundled market ships its zips
-   * beside the index, and the index cannot know the install path ahead of
-   * time (and a hosted market may want to move its zips with the index).
-   * Absolute paths and full URLs pass through untouched.
-   */
-  private resolveEntryUrl(url: string): string {
-    if (isAbsolute(url) || /^[a-z][a-z0-9+.-]*:/i.test(url)) return url;
-    if (/^https?:/i.test(this.registryUrl)) {
-      return this.registryUrl.replace(/[^/]*$/, '') + url.replace(/^\.\//, '');
-    }
-    return join(dirname(this.registryUrl), url);
+    // Resolve entry URLs once, against the index they came from, and hand the
+    // rest of the pipeline absolute URLs. Entries used to be resolved at
+    // download time against `registryUrl` — which would send a bundled
+    // snapshot's relative entries to the hosted host in the fallback case.
+    return {
+      ...index,
+      plugins: index.plugins.map((entry) => ({
+        ...entry,
+        url: resolveEntryUrl(url, entry.url),
+      })),
+    };
   }
 
   private async fetchBytes(url: string): Promise<Buffer> {
@@ -90,7 +171,9 @@ export class PluginMarketplace {
     onPhase?: (phase: 'downloading' | 'verifying' | 'installing') => void,
   ): Promise<{ stagedDir: string; manifest: PluginManifest }> {
     onPhase?.('downloading');
-    const zipBytes = await this.fetchBytes(this.resolveEntryUrl(entry.url));
+    // Entries come back from `catalog()` with absolute URLs — already resolved
+    // against whichever index (hosted or bundled) actually served them.
+    const zipBytes = await this.fetchBytes(entry.url);
 
     onPhase?.('verifying');
     // Always. A missing digest used to skip the check silently, so an index
@@ -125,6 +208,16 @@ export class PluginMarketplace {
     }
     if (manifest.version !== entry.version) {
       throw new Error(`manifest version "${manifest.version}" does not match catalog version "${entry.version}"`);
+    }
+    // Consent is shown from the catalog, but the host grants what the manifest
+    // says. Refuse before committing anything if the package asks for more
+    // than the entry (and therefore the user) was told about.
+    const undeclared = undeclaredPermissions(entry.permissions, manifest.permissions);
+    if (undeclared.length > 0) {
+      throw new Error(
+        `"${manifest.id}" ${manifest.version} declares permission(s) the catalog does not list: ` +
+          `${undeclared.join(', ')} — refusing to install without consent for them`,
+      );
     }
     if (manifest.backend && !existsSync(join(root, manifest.backend))) {
       throw new Error(`backend entry "${manifest.backend}" missing in package`);

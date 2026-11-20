@@ -63,12 +63,13 @@ afterPack: "./scripts/after-pack.cjs"
 # state. Ship the plugin to the marketplace instead of bundling it.
 #
 # What IS bundled is the market itself (pack scripts run
-# scripts/build-market.mjs into `market-dist/` first): index.json + one zip per
-# first-party plugin, copied to `<resources>/market/`. The registry falls back
-# to it when neither PI_PLUGIN_REGISTRY nor _state.json#registry names another
-# source, so a fresh install can install plugins offline. The zips are
-# referenced by paths relative to the index — an absolute build-machine path
-# would dangle after the install moves.
+# scripts/fetch-market.mjs into `market-dist/` first): it downloads the registry
+# index plus each OFFICIAL plugin's release zip, verifies the sha256, and writes
+# index.json + the zips, copied to `<resources>/market/`. The marketplace falls
+# back to it only when the hosted registry is unreachable, so a fresh install
+# can still install plugins offline. The zips are referenced by paths relative
+# to the index — an absolute build-machine path would dangle after the install
+# moves.
 #
 # Windows still ships a shell bundle — that is a runtime dependency of the
 # agent's bash tool, not a plugin.

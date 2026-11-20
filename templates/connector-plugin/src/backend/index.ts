@@ -8,7 +8,8 @@
  *
  * Everything else — the handshake, capability calls, panel routing, timers,
  * error reporting — is the SDK's job. The same `plugin(...)` shape every
- * first-party plugin uses; see docs/plugin-dev-guide.md.
+ * first-party plugin uses; see the plugin dev guide:
+ * https://github.com/PiWorkAgent/PiWork-Plugin-Docs/blob/main/docs/plugin-dev-guide.md
  */
 import { plugin, type PluginContext } from '@pi/plugin-sdk';
 

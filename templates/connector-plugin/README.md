@@ -48,18 +48,26 @@ node scripts/typecheck.mjs  # 可选
 ## 安装与调试
 
 ```bash
-# 开发模式:改完 src/ 就重新构建,然后把整个目录拷到用户插件目录
+# 构建后端
 node scripts/build-backend.mjs
-cp -r manifest.json dist ui ~/.pi/agent/plugins/com.yourco.connector-crm/
-# 重启应用,或者从开发模式启动:node scripts/dev-plugin.mjs
 
-# 打包上架
-node ../../scripts/build-market.mjs   # 打包 + 算 sha256 + 写 index.json
+# 手动安装到用户插件目录（重启应用后生效）
+cp -r manifest.json dist ui ~/.pi/agent/plugins/com.yourco.connector-crm/
+
+# 或者直接在 PiWork 里把本目录当开发根（改代码立刻生效）
+PI_DEV_PLUGINS="$PWD" pnpm dev:desktop:plugins    # 在 PiWork 仓库里执行
 ```
 
-（`build-market.mjs` 只打运行时该带的:manifest / dist / ui / assets / PLUGIN.md。）
+## 发布
+
+插件是独立的发布单位：给自己的插件建一个 GitHub 仓库，把任意官方插件仓库里的
+`scripts/release.mjs` 和 `.github/workflows/release.yml` 复制过来，改
+`manifest.json` 的 `version`，推 tag `v<version>` —— Release 会同时带上
+`<id>-<version>.zip` 和 `index.json`（含 sha256 与固定下载地址）。
+之后向 [PiWork-Registry](https://github.com/PiWorkAgent/PiWork-Registry) 提一个 PR
+登记 `sources.json`，下一次索引刷新就会出现在插件中心。
 
 ## 参考
 
-- 真实例子:`plugins/com.pi.tasks/`——面板 + 工具 + 私有存储 + 通知权限齐全,是仓库里最接近连接器的一个
-- 框架文档:`docs/plugin-dev-guide.md`
+- 真实例子：[PiWork-Plugin-Tasks](https://github.com/PiWorkAgent/PiWork-Plugin-Tasks) —— 面板 + 工具 + 私有存储 + 通知权限齐全，最接近连接器
+- 框架文档：[plugin-dev-guide.md](https://github.com/PiWorkAgent/PiWork-Plugin-Docs/blob/main/docs/plugin-dev-guide.md)

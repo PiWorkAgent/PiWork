@@ -1,6 +1,7 @@
 import { useEffect, useState, type DragEvent as ReactDragEvent, type ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 import { usePanelStore, type PanelEntry, type PanelRegion } from '@/stores/panel-store';
+import { countPluginUpdates, usePluginStore } from '@/stores/plugin-store';
 import { useI18n } from '@/i18n';
 import { panelTitle } from './panel-title';
 import { useUIStore } from '@/stores/ui-store';
@@ -71,6 +72,12 @@ function RailButton({ panel, region }: { panel: PanelEntry; region: PanelRegion 
   const openPanel = usePanelStore((s) => s.openPanel);
   const setRightPanelOpen = useUIStore((s) => s.setRightPanelOpen);
   const runtime = usePanelStore((s) => s.runtime[panel.id]);
+  // Updates available surface on the plugin center's own rail entry: the boot
+  // catalog check runs without the panel being open, and a badge that is only
+  // visible after opening the panel that shows it is no notification at all.
+  const updateCount = usePluginStore((s) =>
+    panel.id === 'host:plugins' ? countPluginUpdates(s.installed, s.catalog) : 0,
+  );
 
   // Active in EITHER slot — a split region shows two panels at once and the
   // rail must light up for both.
@@ -119,6 +126,16 @@ function RailButton({ panel, region }: { panel: PanelEntry; region: PanelRegion 
           )}
           {pending && badge === undefined && (
             <span className={cn('absolute top-1 h-2 w-2 animate-pulse rounded-full bg-primary', isLeft ? 'left-1' : 'right-1')} />
+          )}
+          {updateCount > 0 && (
+            <span
+              data-plugin-updates
+              title={title}
+              className={cn(
+                'absolute bottom-1 h-1.5 w-1.5 rounded-full bg-emerald-500 ring-2 ring-background',
+                isLeft ? 'left-1' : 'right-1',
+              )}
+            />
           )}
           {active && (
             <span

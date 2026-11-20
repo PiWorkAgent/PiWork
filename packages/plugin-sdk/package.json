@@ -1,16 +1,33 @@
 {
-  "name": "@pi/plugin-sdk",
-  "version": "0.0.0",
-  "private": true,
+  "name": "@weiqun789/plugin-sdk",
+  "version": "0.1.0",
   "type": "module",
   "description": "Backend runtime for pi plugins — handshake, capability calls, panel routing, error surfacing",
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/PiWorkAgent/PiWork.git",
+    "directory": "packages/plugin-sdk"
+  },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./dist/index.js"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
   },
   "scripts": {
     "build": "tsc",
+    "prepublishOnly": "tsc",
     "typecheck": "tsc --noEmit",
     "test": "node tests/smoke.mjs",
     "clean": "rm -rf dist *.tsbuildinfo"

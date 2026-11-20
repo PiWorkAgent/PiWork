@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { InstallPhase, MarketEntry, PluginEvent, PluginInfo, PluginPanelStatus } from '@pi/types';
+import { comparePluginVersions } from '@pi/types';
 import { t } from '@/i18n';
 
 /** Minimal typed view of the preload bridge (no-op on the web build). */
@@ -63,6 +64,13 @@ export interface PluginStoreState {
   /** Hide/show one plugin's messages in conversation timelines. */
   setPluginMuted: (pluginId: string, muted: boolean) => Promise<boolean>;
   loadCatalog: (force?: boolean) => Promise<void>;
+  /**
+   * Fetch the catalog once and report how many installed plugins can update.
+   * Called at boot so updates surface without the user opening the plugin
+   * center first; failures are swallowed (an unreachable market must not
+   * produce a startup error toast).
+   */
+  checkForUpdates: () => Promise<number>;
   installPlugin: (pluginId: string) => Promise<boolean>;
   uninstallPlugin: (pluginId: string, keepData?: boolean) => Promise<boolean>;
   /**
@@ -77,6 +85,35 @@ export interface PluginStoreState {
   setPluginSetting: (pluginId: string, key: string, value: unknown) => Promise<boolean>;
   executePluginCommand: (pluginId: string, name: string, args?: string) => Promise<{ ok: boolean; result?: unknown; error?: string }>;
   setPanelStatus: (status: PluginPanelStatus) => void;
+}
+
+/**
+ * Installed plugins the catalog offers a strictly newer version of.
+ *
+ * Dev copies are excluded — their version tracks a checkout, and replacing
+ * that directory through the market is not what an update means. The
+ * comparison is semver, not string inequality: a catalog that is older than
+ * the installed copy (a rollback, or a stale mirror) would otherwise read as
+ * an update and offer a downgrade.
+ */
+export function updatablePlugins(
+  installed: PluginInfo[],
+  catalog: MarketEntry[],
+): Map<string, string> {
+  const byId = new Map(catalog.map((entry) => [entry.id, entry]));
+  const updates = new Map<string, string>();
+  for (const plugin of installed) {
+    if (plugin.source !== 'user') continue;
+    const entry = byId.get(plugin.id);
+    if (entry && comparePluginVersions(entry.version, plugin.version) > 0) {
+      updates.set(plugin.id, entry.version);
+    }
+  }
+  return updates;
+}
+
+export function countPluginUpdates(installed: PluginInfo[], catalog: MarketEntry[]): number {
+  return updatablePlugins(installed, catalog).size;
 }
 
 async function refreshInstalled(set: (partial: Partial<PluginStoreState>) => void): Promise<void> {
@@ -169,6 +206,14 @@ export const usePluginStore = create<PluginStoreState>()((set, get) => ({
     } catch (err) {
       set({ catalogError: err instanceof Error ? err.message : String(err), catalogLoading: false });
     }
+  },
+
+  checkForUpdates: async () => {
+    if (!getPluginBridge()) return 0;
+    // `loadCatalog` records its own failure; an unreachable market is not a
+    // startup problem worth a toast — the plugin center shows it when opened.
+    await get().loadCatalog();
+    return countPluginUpdates(get().installed, get().catalog);
   },
 
   installPlugin: async (pluginId) => {
