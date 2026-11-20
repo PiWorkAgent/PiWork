@@ -18,7 +18,7 @@
     "pack:all": "pnpm build && node scripts/download-bash-bundle.cjs && node scripts/prepare-pack.cjs && electron-builder --mac --win --linux"
   },
   "dependencies": {
-    "@earendil-works/pi-coding-agent": "^1.5.0",
+    "@earendil-works/pi-coding-agent": "^1.5.2",
     "@earendil-works/pi-mcp": "1.5.0",
     "@pi/sdk-wrapper": "workspace:*",
     "@pi/types": "workspace:*",

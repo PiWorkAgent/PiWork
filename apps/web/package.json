@@ -10,7 +10,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@earendil-works/pi-coding-agent": "^1.5.0",
+    "@earendil-works/pi-coding-agent": "^1.5.2",
     "@pi/sdk-wrapper": "workspace:*",
     "@pi/ui": "workspace:*",
     "@tanstack/react-query": "^5.105.0",
