@@ -8,8 +8,12 @@ updates:
     commit-message:
       prefix: chore
     groups:
+      # 小版本和补丁合成一个 PR：彼此兼容风险低，一次看完省事。
+      # 大版本故意不分组——破坏性变更要单独一个 PR，能单独测、单独回滚，
+      # 也让失败时一眼看出是哪个包，而不是一锅 8 个里挑一个。
       dev-dependencies:
         dependency-type: development
+        update-types: ['minor', 'patch']
 
     # 下面这些包的主版本都是破坏性变更，要整套迁移（配置重写 + 真机回归），
     # 不适合按周自动提 PR：tailwind 4 换成 CSS-first 配置、vite 8 /
