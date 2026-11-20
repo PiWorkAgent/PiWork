@@ -174,6 +174,21 @@ export class PluginRegistry {
     plugin.enabled = enabled;
   }
 
+  /**
+   * Drop a plugin's saved preference — used on uninstall.
+   *
+   * The entry outlived the code: uninstalling left `enabled: false` behind, so
+   * a later reinstall of the same id arrived already disabled and the user had
+   * to hunt for a switch to turn it on. The preference belongs to the copy it
+   * was set on. Everything else in the file (the registry override) is kept.
+   */
+  forgetPlugin(pluginId: string): void {
+    if (!this.stateFile.plugins || !(pluginId in this.stateFile.plugins)) return;
+    delete this.stateFile.plugins[pluginId];
+    if (Object.keys(this.stateFile.plugins).length === 0) delete this.stateFile.plugins;
+    this.saveState();
+  }
+
   // ── Scanning ──
 
   /** Scan all roots, validate manifests, negotiate engines, and dedupe by priority. */
