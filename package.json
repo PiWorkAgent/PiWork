@@ -52,6 +52,9 @@
         "glibc",
         "musl"
       ]
+    },
+    "overrides": {
+      "@types/node": "26.6.6"
     }
   },
   "devDependencies": {
