@@ -114,6 +114,34 @@ test('reusing a file already in the attachment folder does not duplicate it', as
   assert.equal(existsSync(join(dir, 'report (1).pdf')), false);
 });
 
+test('sanitizes names Win32 rejects instead of failing the save', async (t) => {
+  const root = workspace(t);
+  const source = sourceFile(t, 'payload.bin', 'bytes');
+
+  // `< > : " / \ | ? *` are invalid in a Windows file name; the copy must
+  // still land, under a normalized name.
+  const invalid = await saveAttachmentIntoWorkspace(root, {
+    sourcePath: source,
+    name: 'a:b?.pdf',
+  });
+  assert.equal(invalid.name, 'a_b_.pdf');
+
+  // Win32 silently drops trailing dots/spaces, which would defeat the
+  // collision check by mapping two names onto one file.
+  const trailing = await saveAttachmentIntoWorkspace(root, {
+    sourcePath: source,
+    name: 'report. ',
+  });
+  assert.equal(trailing.name, 'report');
+
+  // Reserved device names are invalid even with an extension.
+  const reserved = await saveAttachmentIntoWorkspace(root, {
+    sourcePath: source,
+    name: 'CON.txt',
+  });
+  assert.equal(reserved.name, '_CON.txt');
+});
+
 test('a file already in the workspace is referenced in place', async (t) => {
   const root = workspace(t);
   const nested = join(root, 'docs');

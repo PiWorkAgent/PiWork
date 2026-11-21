@@ -256,6 +256,7 @@ export function BuiltinVoiceCard({
                 }
               }}
               onKeyDown={(event) => {
+                if (event.nativeEvent.isComposing) return;
                 if (event.key === 'Enter') event.currentTarget.blur();
               }}
             />

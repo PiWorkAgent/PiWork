@@ -28,7 +28,9 @@ files:
 # from the asar archive so they can be loaded by Node at runtime.
 asarUnpack:
   - "node_modules/@earendil-works/pi-coding-agent/**/*"
-  - "node_modules/@mariozechner/clipboard*/**/*"
+  # Clipboard natives ship through @earendil-works/pi-tui now; electron-builder
+  # auto-unpacks `.node` files it finds, so the old @mariozechner entry matched
+  # nothing and only misled debugging.
   # Built-in voice: prebuilt N-API addon + platform runtime libs. `.node`,
   # `.dylib` and `.so` files cannot be loaded from inside an asar archive.
   - "node_modules/sherpa-onnx-node/**/*"

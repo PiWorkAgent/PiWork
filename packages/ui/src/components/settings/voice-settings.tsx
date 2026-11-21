@@ -125,6 +125,7 @@ function PrefText({
           if (event.target.value.trim() !== value) onCommit(event.target.value);
         }}
         onKeyDown={(event) => {
+          if (event.nativeEvent.isComposing) return;
           if (event.key === 'Enter') event.currentTarget.blur();
         }}
       />

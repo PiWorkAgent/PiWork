@@ -4,6 +4,7 @@
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { join } from 'node:path';
 import { floatTo16BitPcmWav16k } from '../../../packages/ui/src/lib/voice/wav.ts';
 import {
   float32ToPcm16Wav,
@@ -53,34 +54,36 @@ test('float samples are clipped into a 16-bit WAV', () => {
 });
 
 test('recognizer config points at the right model files', () => {
+  // Config values are native paths (sherpa opens them with std::ifstream), so
+  // expectations must be built with `join`, not hard-coded '/'-separated.
   const sv = buildRecognizerConfig('sensevoice', '/models/sensevoice', 'zh');
-  assert.equal(sv.modelConfig.senseVoice.model, '/models/sensevoice/model.int8.onnx');
-  assert.equal(sv.modelConfig.tokens, '/models/sensevoice/tokens.txt');
+  assert.equal(sv.modelConfig.senseVoice.model, join('/models/sensevoice', 'model.int8.onnx'));
+  assert.equal(sv.modelConfig.tokens, join('/models/sensevoice', 'tokens.txt'));
   assert.equal(sv.modelConfig.senseVoice.language, 'zh');
 
   const base = buildRecognizerConfig('whisper-base', '/models/base', '');
-  assert.equal(base.modelConfig.whisper.encoder, '/models/base/base-encoder.int8.onnx');
-  assert.equal(base.modelConfig.whisper.decoder, '/models/base/base-decoder.int8.onnx');
+  assert.equal(base.modelConfig.whisper.encoder, join('/models/base', 'base-encoder.int8.onnx'));
+  assert.equal(base.modelConfig.whisper.decoder, join('/models/base', 'base-decoder.int8.onnx'));
   assert.equal(base.modelConfig.whisper.language, 'zh');
 
   const small = buildRecognizerConfig('whisper-small', '/models/small', 'en');
-  assert.equal(small.modelConfig.whisper.encoder, '/models/small/small-encoder.int8.onnx');
+  assert.equal(small.modelConfig.whisper.encoder, join('/models/small', 'small-encoder.int8.onnx'));
   assert.equal(small.modelConfig.whisper.language, 'en');
 });
 
 test('TTS config wires lexicon, dict and rule FSTs', () => {
   const config = buildTtsConfig('melo-int8', '/models/melo');
-  assert.equal(config.model.vits.model, '/models/melo/model.int8.onnx');
-  assert.equal(config.model.vits.dictDir, '/models/melo/dict');
+  assert.equal(config.model.vits.model, join('/models/melo', 'model.int8.onnx'));
+  assert.equal(config.model.vits.dictDir, join('/models/melo', 'dict'));
   assert.match(config.ruleFsts, /date\.fst,.*number\.fst,.*phone\.fst$/);
 });
 
 test('Kokoro config points at voices, lexicons and the zh rule FSTs', () => {
   const config = buildTtsConfig('kokoro', '/models/kokoro');
-  assert.equal(config.model.kokoro.model, '/models/kokoro/model.onnx');
-  assert.equal(config.model.kokoro.voices, '/models/kokoro/voices.bin');
+  assert.equal(config.model.kokoro.model, join('/models/kokoro', 'model.onnx'));
+  assert.equal(config.model.kokoro.voices, join('/models/kokoro', 'voices.bin'));
   assert.match(config.model.kokoro.lexicon, /lexicon-us-en\.txt,.*lexicon-zh\.txt$/);
-  assert.equal(config.model.kokoro.dictDir, '/models/kokoro/dict');
+  assert.equal(config.model.kokoro.dictDir, join('/models/kokoro', 'dict'));
   assert.match(config.ruleFsts, /date-zh\.fst,.*phone-zh\.fst$/);
 });
 

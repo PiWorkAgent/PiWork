@@ -123,6 +123,8 @@ export function PanelTabs({ region = 'right' }: { region?: PanelRegion }) {
   useEffect(() => {
     if (region !== 'right') return;
     const onKey = (e: KeyboardEvent) => {
+      // Holding the chord must not spawn a group per OS key-repeat.
+      if (e.repeat) return;
       if (!(e.metaKey || e.ctrlKey)) return;
       if (e.key !== '\\' && e.code !== 'Backslash') return;
       const target = e.target as HTMLElement | null;

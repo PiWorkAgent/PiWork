@@ -35,7 +35,15 @@ function resolveArch(context) {
 module.exports = async function pruneSherpa(context) {
   const platform = resolvePlatform(context);
   const arch = resolveArch(context);
-  if (!platform || !arch) return;
+  if (!platform || !arch) {
+    // Failing open here would silently ship every platform's sherpa runtime
+    // (~150 MB) with no signal; make the skip visible.
+    console.warn(
+      `[prune-sherpa] cannot determine target platform/arch ` +
+      `(platform=${platform ?? '?'}, arch=${arch ?? '?'}); skipping prune`,
+    );
+    return;
+  }
 
   const target = `sherpa-onnx-${platform}-${arch}`;
   // mac: <appOutDir>/<Product>.app/Contents/Resources

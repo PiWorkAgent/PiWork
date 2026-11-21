@@ -38,6 +38,21 @@ export function useTheme() {
     syncNativeTitleBar();
   }, [fontScale]);
 
+  // Page zoom changes the header band's DIP height without changing its CSS
+  // height, so the native overlay has to be re-synced (and colors follow).
+  useEffect(() => {
+    let timer: number | undefined;
+    const onResize = () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(syncNativeTitleBar, 120);
+    };
+    window.addEventListener('resize', onResize);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener('resize', onResize);
+    };
+  }, []);
+
   return { theme, resolvedTheme, fontScale, setTheme, setFontScale };
 }
 
@@ -55,7 +70,10 @@ function applyTheme(theme: 'light' | 'dark') {
  */
 function syncNativeTitleBar() {
   const api = (window as unknown as {
-    electronAPI?: { invoke?: (channel: string, ...args: unknown[]) => Promise<unknown> };
+    electronAPI?: {
+      invoke?: (channel: string, ...args: unknown[]) => Promise<unknown>;
+      chrome?: { zoomFactor?: () => number };
+    };
   }).electronAPI;
   if (!api?.invoke) return;
 
@@ -66,11 +84,14 @@ function syncNativeTitleBar() {
   const symbolColor = styles.color;
   if (!color || !symbolColor) return;
 
-  // The caption buttons sit on the header band, which is sized in rem and so
-  // follows the 字号 setting. Report its measured height rather than a copy of
-  // the constant in main, which would drift the moment either side changes.
+  // The caption buttons sit on the header band, which follows the 字号
+  // setting. Report its measured height rather than a copy of the constant in
+  // main, which would drift the moment either side changes. The overlay is
+  // measured in DIPs while `offsetHeight` is CSS px, so apply page zoom.
   const header = document.querySelector<HTMLElement>('[data-drag-region]');
-  const height = header?.offsetHeight;
+  const zoomValue = api.chrome?.zoomFactor?.() ?? 1;
+  const zoom = Number.isFinite(zoomValue) && zoomValue > 0 ? zoomValue : 1;
+  const height = header ? header.offsetHeight * zoom : undefined;
 
   api.invoke('pi:window:setTitleBarOverlay', { color, symbolColor, height }).catch(() => {});
 }

@@ -11,6 +11,7 @@
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { dirname, join, resolve } from 'node:path';
 import { comparePluginVersions } from '@pi/types';
 import {
   DEFAULT_REGISTRY_URL,
@@ -19,6 +20,23 @@ import {
   undeclaredPermissions,
 } from '../src/main/plugins/marketplace.ts';
 import { shouldAutoRollback } from '../src/main/plugins/install-policy.ts';
+import { isSafePluginId, isSafePluginVersion } from '../src/main/plugins/registry.ts';
+
+test('catalog id/version cannot escape the staging directory', () => {
+  // These become `<id>-<version>` under `.staging` before the zip's manifest
+  // is trusted, so the catalog index itself is the trust boundary.
+  assert.equal(isSafePluginId('com.pi.files'), true);
+  assert.equal(isSafePluginId('../../evil'), false);
+  assert.equal(isSafePluginId('a/b'), false);
+  assert.equal(isSafePluginId('..'), false);
+  assert.equal(isSafePluginId(''), false);
+
+  assert.equal(isSafePluginVersion('0.6.0'), true);
+  assert.equal(isSafePluginVersion('1.0.0-beta.1+build'), true);
+  assert.equal(isSafePluginVersion('../0.1'), false);
+  assert.equal(isSafePluginVersion('0.1/0.2'), false);
+  assert.equal(isSafePluginVersion('0..1'), false);
+});
 
 test('the default registry is the latest release index of the plugins repo', () => {
   assert.match(DEFAULT_REGISTRY_URL, /^https:\/\/github\.com\/[^/]+\/[^/]+\/releases\/latest\/download\/index\.json$/);
@@ -37,13 +55,16 @@ test('relative catalog entries resolve beside the index they came from', () => {
 });
 
 test('absolute URLs and paths pass through untouched', () => {
-  const index = '/home/me/market/index.json';
-  assert.equal(resolveEntryUrl(index, '/opt/zips/a.zip'), '/opt/zips/a.zip');
+  // Build the paths with `path`, not literals: `/opt/...` is not absolute on
+  // Windows, so the assertion would exercise the join branch instead.
+  const index = resolve('/home/me/market/index.json');
+  const outside = resolve('/opt/zips/a.zip');
+  assert.equal(resolveEntryUrl(index, outside), outside);
   assert.equal(
     resolveEntryUrl(index, 'https://cdn.example.com/a.zip'),
     'https://cdn.example.com/a.zip',
   );
-  assert.equal(resolveEntryUrl(index, 'a.zip'), '/home/me/market/a.zip');
+  assert.equal(resolveEntryUrl(index, 'a.zip'), join(dirname(index), 'a.zip'));
 });
 
 test('versions order like semver, not like strings', () => {

@@ -1,4 +1,4 @@
-import { BrowserWindow, screen } from 'electron';
+import { BrowserWindow, screen, shell } from 'electron';
 import type { Rectangle } from 'electron';
 import { existsSync } from 'fs';
 import path from 'path';
@@ -18,7 +18,7 @@ const moduleDir = path.dirname(fileURLToPath(import.meta.url));
  */
 const DEV_ICON = path.join(moduleDir, '../../build/icon.png');
 
-/** Height of the renderer-drawn title bar; must match TitleBar's h-11 (2.75rem). */
+/** Height of the renderer-drawn title bar; must match the header band's 44px. */
 export const TITLE_BAR_HEIGHT = 44;
 
 export interface CreateWindowOptions {
@@ -114,6 +114,47 @@ export function createMainWindow(options: CreateWindowOptions = {}): BrowserWind
   // replace it.
   mainWindow.on('page-title-updated', (event) => event.preventDefault());
 
+  // The shell window is the app, not a browser. Markdown links render as
+  // `target=_blank`; without this handler Chromium's default opened a bare
+  // Electron window with no preload/chrome, while every other external-link
+  // path in the app goes through `shell.openExternal`. Also keep the shell
+  // document itself from being navigated away by a link click.
+  const openExternal = (url: string): void => {
+    if (/^(https?:|mailto:)/i.test(url)) {
+      void shell.openExternal(url).catch(() => {});
+    }
+  };
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    openExternal(url);
+    return { action: 'deny' };
+  });
+  let devOrigin: string | null = null;
+  if (process.env.ELECTRON_RENDERER_URL) {
+    try {
+      devOrigin = new URL(process.env.ELECTRON_RENDERER_URL).origin;
+    } catch {
+      devOrigin = null;
+    }
+  }
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    // Only the app's own document may load here — in dev its origin, in a
+    // packaged build the renderer directory. Anything else (including an
+    // arbitrary `file://` link) goes to the OS instead.
+    let allowed = false;
+    if (devOrigin !== null) {
+      allowed = url.startsWith(devOrigin);
+    } else {
+      const current = mainWindow.webContents.getURL();
+      const base = current.startsWith('file://')
+        ? current.slice(0, current.lastIndexOf('/') + 1)
+        : '';
+      allowed = base !== '' && url.startsWith(base);
+    }
+    if (allowed) return;
+    event.preventDefault();
+    openExternal(url);
+  });
+
   mainWindow.once('ready-to-show', () => {
     if (mainWindow.isDestroyed()) return;
     if (options.maximized) mainWindow.maximize();
@@ -127,6 +168,17 @@ export function createMainWindow(options: CreateWindowOptions = {}): BrowserWind
     }
   }, 4000);
   mainWindow.once('closed', () => clearTimeout(showFallback));
+
+  // The renderer reserves fixed insets for the OS window controls (traffic
+  // lights on macOS, caption buttons on Windows). Those controls are hidden in
+  // fullscreen, so the reserve must be dropped or the header keeps a dead gap
+  // and the layout toggles stay pushed off the edge.
+  const sendFullscreen = (): void => {
+    if (mainWindow.isDestroyed()) return;
+    mainWindow.webContents.send('pi:window:fullscreen-changed', mainWindow.isFullScreen());
+  };
+  mainWindow.on('enter-full-screen', sendFullscreen);
+  mainWindow.on('leave-full-screen', sendFullscreen);
 
   return mainWindow;
 }

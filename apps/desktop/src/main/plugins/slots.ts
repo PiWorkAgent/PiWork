@@ -282,13 +282,21 @@ export function registerLiveSlotIpcHandlers(host: LiveSlotIpcHost): void {
     ) => {
       const registry = host.forSender(event.sender);
       if (!registry) return { ok: false, error: 'unknown window' };
+      // The renderer measures in CSS pixels; `WebContentsView.setBounds`
+      // takes DIPs. Page zoom (View → 缩放) scales CSS px relative to DIP, so
+      // converting here keeps every native panel (browser, files, office)
+      // exactly over its slot at any zoom level.
+      const zoom = event.sender.getZoomFactor?.() ?? 1;
+      const scale = Number.isFinite(zoom) && zoom > 0 ? zoom : 1;
+      const dip = (value: unknown): number =>
+        Math.round((typeof value === 'number' ? value : 0) * scale);
       return registry.setBounds(
         String(payload?.slotId ?? ''),
         {
-          x: payload?.x ?? 0,
-          y: payload?.y ?? 0,
-          width: payload?.width ?? 0,
-          height: payload?.height ?? 0,
+          x: dip(payload?.x),
+          y: dip(payload?.y),
+          width: dip(payload?.width),
+          height: dip(payload?.height),
         },
         payload?.tag || undefined,
       );

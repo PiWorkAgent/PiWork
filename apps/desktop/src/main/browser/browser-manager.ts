@@ -107,8 +107,18 @@ const ENGINE_WEB_PREFS = {
  * see — its challenge then spins at "Checking your Browser…" forever.
  */
 const CHROME_MAJOR = (process.versions.chrome || '130.0.0.0').split('.')[0];
+// The platform token must match where the app actually runs: a Macintosh UA on
+// Windows/Linux contradicts Sec-CH-UA-Platform (which Chromium keeps truthful)
+// and makes download pages offer the macOS build. Only the `Electron` token is
+// being hidden here, not the OS.
+const PLATFORM_TOKEN =
+  process.platform === 'win32'
+    ? 'Windows NT 10.0; Win64; x64'
+    : process.platform === 'darwin'
+      ? 'Macintosh; Intel Mac OS X 10_15_7'
+      : 'X11; Linux x86_64';
 export const ENGINE_UA =
-  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) ' +
+  `Mozilla/5.0 (${PLATFORM_TOKEN}) ` +
   `AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${CHROME_MAJOR}.0.0.0 Safari/537.36`;
 
 /**

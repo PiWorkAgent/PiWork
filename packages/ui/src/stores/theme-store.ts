@@ -58,3 +58,31 @@ export const useThemeStore = create<ThemeState>()(
     },
   ),
 );
+
+/**
+ * Keep the OTHER windows in step. Appearance is a device-level choice, but
+ * localStorage is per renderer: without this a second window kept the old
+ * theme/size until reload — and its next persist write (toggling the theme)
+ * put the old fontScale back for the following launch.
+ */
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (event) => {
+    if (event.key !== 'pi-theme-storage' || !event.newValue) return;
+    try {
+      const parsed = JSON.parse(event.newValue) as {
+        state?: { theme?: ThemeMode; fontScale?: number };
+      } | null;
+      const incoming = parsed?.state;
+      if (!incoming) return;
+      const current = useThemeStore.getState();
+      if (typeof incoming.fontScale === 'number' && incoming.fontScale !== current.fontScale) {
+        current.setFontScale(incoming.fontScale);
+      }
+      if (incoming.theme && incoming.theme !== current.theme) {
+        current.setTheme(incoming.theme);
+      }
+    } catch {
+      /* malformed payload — keep the current appearance */
+    }
+  });
+}

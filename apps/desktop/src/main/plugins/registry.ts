@@ -1,7 +1,15 @@
 import { app } from 'electron';
 import { getAgentDir } from '@earendil-works/pi-coding-agent';
-import { existsSync, readdirSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
-import { join, resolve, dirname } from 'path';
+import {
+  existsSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+  mkdirSync,
+  statSync,
+  type Dirent,
+} from 'fs';
+import { join, resolve, dirname, delimiter } from 'path';
 import type {
   PluginManifest,
   PluginRuntimeState,
@@ -15,7 +23,22 @@ import { satisfiesVersion } from './semver';
 /** Host app id used in `engines` negotiation. */
 export const HOST_ENGINE_KEY = 'pi-desktop';
 
-const PLUGIN_ID_RE = /^[a-z0-9]+(?:[.-][a-z0-9]+)*$/;
+export const PLUGIN_ID_RE = /^[a-z0-9]+(?:[.-][a-z0-9]+)*$/;
+
+/**
+ * A catalog version becomes a path segment (`<id>-<version>` in `.staging`)
+ * before the manifest is validated, so it has to be path-safe on its own:
+ * semver characters only, no separators, no `..`.
+ */
+export const SAFE_VERSION_RE = /^[0-9A-Za-z][0-9A-Za-z._+-]{0,63}$/;
+
+export function isSafePluginId(id: unknown): id is string {
+  return typeof id === 'string' && PLUGIN_ID_RE.test(id);
+}
+
+export function isSafePluginVersion(version: unknown): version is string {
+  return typeof version === 'string' && SAFE_VERSION_RE.test(version) && !version.includes('..');
+}
 
 export interface ResolvedPlugin {
   manifest: PluginManifest;
@@ -136,7 +159,15 @@ export class PluginRegistry {
 
   private getDevPaths(): string[] {
     const env = process.env.PI_DEV_PLUGINS;
-    return env ? env.split(':').filter(Boolean) : [];
+    // `path.delimiter` — `:` on POSIX but `;` on Windows, where splitting on
+    // `:` tears `C:\work\Plugin` into `C` and `\work\Plugin` and the checkout
+    // never loads.
+    return env
+      ? env
+          .split(delimiter)
+          .map((p) => p.trim())
+          .filter(Boolean)
+      : [];
   }
 
   // ── State file ──
@@ -202,17 +233,40 @@ export class PluginRegistry {
 
     const collectFrom = (rootPath: string, source: PluginSource) => {
       if (!rootPath || !existsSync(rootPath)) return;
-      const stat = readdirSync(rootPath, { withFileTypes: true });
+      let entries: Dirent[];
+      try {
+        entries = readdirSync(rootPath, { withFileTypes: true });
+      } catch (err) {
+        // An unreadable root — ACLs, a disconnected network/OneDrive home, a
+        // directory swapped out mid-scan — must not abort the scan: `scan()`
+        // runs during plugin-kernel boot, and a throw here rejected `init()`
+        // and skipped the rest of the main-process boot chain.
+        console.warn(`[plugins] Cannot scan ${rootPath}:`, err);
+        return;
+      }
 
       // A root may itself be a plugin directory (single-plugin dev path).
       if (existsSync(join(rootPath, 'manifest.json'))) {
         this.addCandidate(candidates, shadowed, rootPath, source);
         return;
       }
-      for (const entry of stat) {
-        if (!entry.isDirectory() || entry.name.startsWith('.')) continue;
+      for (const entry of entries) {
+        if (entry.name.startsWith('.')) continue;
         if (entry.name === '_data') continue;  // plugin data, not a plugin
-        this.addCandidate(candidates, shadowed, join(rootPath, entry.name), source);
+        const dirPath = join(rootPath, entry.name);
+        let isDir = entry.isDirectory();
+        if (!isDir && entry.isSymbolicLink()) {
+          // readdir reports symlinks (and Windows junctions, which are reparse
+          // points) as non-directories. Relocating a plugin behind a link into
+          // another drive/folder is a normal workflow; follow it.
+          try {
+            isDir = statSync(dirPath).isDirectory();
+          } catch {
+            isDir = false;
+          }
+        }
+        if (!isDir) continue;
+        this.addCandidate(candidates, shadowed, dirPath, source);
       }
     };
 
@@ -313,6 +367,10 @@ export class PluginRegistry {
 
     // Panel validation. A panel IS a web page: id names it and entry points at
     // it. There is no `kind` — the host decides how to host the page.
+    //
+    // Entries become URL paths on every platform, so a manifest authored on
+    // Windows with `ui\\index.html` is normalized here — otherwise it works on
+    // Windows and 404s on macOS/Linux.
     for (const panel of manifest.contributes?.panels ?? []) {
       if (!panel.id) {
         console.warn(`[plugins] Panel without id in ${dir}`);
@@ -322,7 +380,7 @@ export class PluginRegistry {
         console.warn(`[plugins] Panel "${panel.id}" has no entry in ${dir}`);
         return null;
       }
-      panel.entry = panel.entry.replace(/^\/+/, '');
+      panel.entry = panel.entry.replace(/\\/g, '/').replace(/^\/+/, '');
     }
 
     // Tool names must be unique within one manifest. The aggregated tool
@@ -338,10 +396,15 @@ export class PluginRegistry {
       toolNames.add(tool.name);
     }
 
-    // Backend entry must exist when declared.
-    if (manifest.backend && !existsSync(join(dir, manifest.backend))) {
-      console.warn(`[plugins] Backend entry "${manifest.backend}" not found in ${dir}`);
-      return null;
+    // Backend entry must exist when declared. Normalize separators first for
+    // the same reason as panel entries: `dist\\main.mjs` must resolve (and run)
+    // on POSIX too.
+    if (manifest.backend) {
+      manifest.backend = manifest.backend.replace(/\\/g, '/');
+      if (!existsSync(join(dir, manifest.backend))) {
+        console.warn(`[plugins] Backend entry "${manifest.backend}" not found in ${dir}`);
+        return null;
+      }
     }
 
     return { manifest };
@@ -375,8 +438,8 @@ export class PluginRegistry {
     // the plugin's own pi-plugin:// origin) or a name from the host's icon
     // vocabulary ("calendar"). One field, told apart by the leading "./" or "/".
     const iconFileUrl = (value: string | undefined): string | undefined =>
-      value && /^\.?[./]/.test(value)
-        ? `pi-plugin://${id}/${value.replace(/^\.?\//, '')}`
+      value && /^[.\\/]/.test(value)
+        ? `pi-plugin://${id}/${value.replace(/\\/g, '/').replace(/^\.?\//, '')}`
         : undefined;
 
     const pluginIconUrl = iconFileUrl(plugin.manifest.icon);

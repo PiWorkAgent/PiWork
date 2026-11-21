@@ -123,6 +123,24 @@ jobs:
         if: matrix.platform == 'win'
         run: node apps/desktop/scripts/download-bash-bundle.cjs
 
+      # electron-builder 对缺失的 extraResources 只发警告，不会失败；这里断言
+      # 产物真的带了 shell，避免发布一个"能装但 agent 没有 shell"的安装包。
+      - name: Verify Windows shell bundle
+        if: matrix.platform == 'win'
+        shell: pwsh
+        run: |
+          $candidates = @(
+            "apps/desktop/bash-bundle/ucrt64/bin/bash.exe",
+            "apps/desktop/bash-bundle/ucrt64/bin/ash.exe",
+            "apps/desktop/bash-bundle/mingw64/bin/bash.exe",
+            "apps/desktop/bash-bundle/mingw64/bin/ash.exe"
+          )
+          $found = $candidates | Where-Object { Test-Path $_ }
+          if (-not $found) {
+            throw "bash bundle missing: the Windows installer would ship without a shell"
+          }
+          Write-Host "shell bundle present: $($found -join ', ')"
+
       # Windows 的实时防护会扫工作区里刚写出的文件，打包时持有句柄会 EBUSY。
       - name: 'Windows: keep Defender out of the workspace'
         if: matrix.platform == 'win'

@@ -9,7 +9,7 @@
 
 import { mkdir, readdir, rm, statfs } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { WebContents } from 'electron';
+import { net, type WebContents } from 'electron';
 import type {
   BuiltinModelId,
   VoiceBuiltinModel,
@@ -192,6 +192,16 @@ export class VoiceModelManager {
             expectedBytes: file.size,
             expectedSha256: file.sha256,
             signal: controller.signal,
+            // Electron's network stack, not node:https: it honours the proxy
+            // the user configured (设置 → 通用 → 网络代理) and the system
+            // proxy. A bare node request bypassed both, so the ~300 MB model
+            // downloads failed on proxy-only networks while every other
+            // request in the app worked. Tests still inject their own fetch.
+            // The downloader always passes a string URL; `fetch`'s wider
+            // `RequestInfo` type includes Request/URL that net.fetch types
+            // differently.
+            fetchImpl: ((url: string, init?: RequestInit) =>
+              net.fetch(url, init)) as typeof fetch,
             onProgress: (received) => {
               record.received = receivedBefore + received;
               const now = Date.now();

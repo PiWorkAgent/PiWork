@@ -55,10 +55,11 @@ export async function downloadToFile(options: DownloadOptions): Promise<number> 
 }
 
 /**
- * Electron's global fetch goes through Chromium's network service, which is
- * not what we want here (it fails in the packaged/main context and ignores
- * Node's TLS settings). Downloads use Node's own http(s) client; tests inject
- * `fetchImpl` instead.
+ * Production passes `fetchImpl: net.fetch` (see model-manager) so model
+ * downloads go through Electron's network stack and honour the app/system
+ * proxy — a bare node:https request bypassed both, so downloads failed on
+ * proxy-only networks. This node http(s) path stays as the fallback for
+ * callers (and tests) that bring no fetch of their own.
  */
 function requestWithRedirects(
   url: string,

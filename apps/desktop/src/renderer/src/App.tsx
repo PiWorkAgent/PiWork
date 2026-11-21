@@ -387,6 +387,41 @@ function AppContent() {
     });
   }, []);
 
+  // Native right-click menu for the shell UI: text fields, selected text and
+  // links. It has to come from main — a DOM menu would be covered by the
+  // plugin panels' native views. Only intercept when there is something to
+  // offer (Cut/Copy/Paste, Copy, Open Link); everything else keeps its
+  // default behavior.
+  useEffect(() => {
+    const api = (window as unknown as {
+      electronAPI?: { invoke?: (channel: string, ...args: unknown[]) => Promise<unknown> };
+    }).electronAPI;
+    if (!api?.invoke) return;
+    const onContextMenu = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (!target) return;
+      const editable =
+        target.isContentEditable ||
+        target.closest('input, textarea, [contenteditable="true"], [contenteditable=""]') != null;
+      const selection = window.getSelection()?.toString() ?? '';
+      const anchor = target.closest('a[href]');
+      const linkURL = anchor instanceof HTMLAnchorElement ? anchor.href : '';
+      const hasSelection = selection.length > 0;
+      if (!editable && !hasSelection && !linkURL) return;
+      event.preventDefault();
+      void api
+        .invoke!('pi:menu:context', {
+          x: event.clientX,
+          y: event.clientY,
+          editable,
+          hasSelection,
+          linkURL,
+        })
+        .catch(() => {});
+    };
+    window.addEventListener('contextmenu', onContextMenu);
+    return () => window.removeEventListener('contextmenu', onContextMenu);
+  }, []);
 
   return (
     <TooltipProvider delayDuration={300}>

@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer, webUtils } from 'electron';
+import { contextBridge, ipcRenderer, webFrame, webUtils } from 'electron';
 import type {
   BuiltinModelId,
   ImportFilesResult,
@@ -77,6 +77,11 @@ export interface ElectronAPI {
     insetRight: number;
     /** Host draws its own minimize/maximize/close (Linux frameless). */
     customControls: boolean;
+    /**
+     * Page zoom of this frame: CSS px per DIP. The insets above are DIPs, so
+     * the renderer divides by this before using them as CSS lengths.
+     */
+    zoomFactor: () => number;
   };
 
   // ── Dialogs ──
@@ -181,16 +186,41 @@ export interface DirEntry {
   path: string;
 }
 
+/**
+ * `on()` subscribes a wrapper (it strips ipcRenderer's event argument), so
+ * `removeListener()` has to remove the WRAPPER — passing the caller's original
+ * function removed nothing and every mount/unmount cycle leaked a listener.
+ */
+const listenerWrappers = new Map<
+  string,
+  Map<(...args: unknown[]) => void, (event: unknown, ...args: unknown[]) => void>
+>();
+
 const electronAPI: ElectronAPI = {
   windowId: readWindowId(),
   invoke: (channel: string, ...args: unknown[]): Promise<unknown> => {
     return ipcRenderer.invoke(channel, ...args);
   },
   on: (channel: string, callback: (...args: unknown[]) => void): void => {
-    ipcRenderer.on(channel, (_event, ...args) => callback(...args));
+    const wrapper = (_event: unknown, ...args: unknown[]) => callback(...args);
+    let perChannel = listenerWrappers.get(channel);
+    if (!perChannel) {
+      perChannel = new Map();
+      listenerWrappers.set(channel, perChannel);
+    }
+    // Subscribing the same callback twice must not leave two live listeners.
+    const previous = perChannel.get(callback);
+    if (previous) ipcRenderer.removeListener(channel, previous);
+    perChannel.set(callback, wrapper);
+    ipcRenderer.on(channel, wrapper);
   },
   removeListener: (channel: string, callback: (...args: unknown[]) => void): void => {
-    ipcRenderer.removeListener(channel, callback);
+    const perChannel = listenerWrappers.get(channel);
+    const wrapper = perChannel?.get(callback);
+    if (!wrapper) return;
+    ipcRenderer.removeListener(channel, wrapper);
+    perChannel!.delete(callback);
+    if (perChannel!.size === 0) listenerWrappers.delete(channel);
   },
   window: {
     minimize: () => ipcRenderer.invoke('pi:window:minimize'),
@@ -219,6 +249,7 @@ const electronAPI: ElectronAPI = {
     // Windows caption buttons are drawn by titleBarOverlay on the right.
     insetRight: process.platform === 'win32' ? 138 : 0,
     customControls: process.platform === 'linux',
+    zoomFactor: () => webFrame.getZoomFactor(),
   },
 
   dialog: {

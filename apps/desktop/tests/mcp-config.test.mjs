@@ -79,6 +79,19 @@ test('an override-only project record patches enabled without a transport', (t) 
   assert.equal(loaded.servers[0].config.command, 'node', 'the global command is inherited');
 });
 
+test('a differently-spelled path of a trusted workspace stays trusted', (t) => {
+  const { store, workspace } = setup(t);
+  store.setWorkspaceTrusted(workspace, true);
+
+  // Same directory reached with a trailing `/.` — `===` on raw strings used to
+  // read this as a different, untrusted workspace.
+  assert.equal(store.isWorkspaceTrusted(join(workspace, '.')), true);
+
+  // Removal must match the same canonical form, or the entry was un-removable.
+  store.setWorkspaceTrusted(join(workspace, '.'), false);
+  assert.equal(store.isWorkspaceTrusted(workspace), false);
+});
+
 test('project servers only load for a trusted workspace', (t) => {
   const { store, workspace, config } = setup(t);
   writeConfig(config, { mcpServers: { a: { command: 'node' }, b: { command: 'node' } } });

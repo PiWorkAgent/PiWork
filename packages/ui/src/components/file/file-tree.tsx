@@ -347,7 +347,10 @@ export function FileTree() {
               <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
               <span className="min-w-0 flex-1 truncate text-xs">{entry.name}</span>
               <span className="shrink-0 truncate text-[0.625rem] text-muted-foreground max-w-[45%]">
-                {entry.path.split('/').slice(-2, -1)[0]}
+                {/* Split on either separator: SDK paths are native, so a
+                    Windows hit is `C:\dir\hit` and a `/`-only split left the
+                    parent hint empty. */}
+                {entry.path.split(/[\\/]/).slice(-2, -1)[0]}
               </span>
               <button
                 type="button"

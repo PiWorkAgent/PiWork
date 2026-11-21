@@ -218,6 +218,7 @@ export const EN_MESSAGES = {
   对话换到右侧: 'Move chat to the right',
   最小化: 'Minimise',
   最大化: 'Maximise',
+  还原: 'Restore',
   关闭: 'Close',
   左侧栏: 'left sidebar',
   面板: 'panel',
@@ -579,6 +580,7 @@ export const EN_MESSAGES = {
   '按 Enter 继续追问，或点「引导」改变方向…':
     'Press Enter to follow up, or click Steer to redirect…',
   '引导（Ctrl+Enter）': 'Steer (Ctrl+Enter)',
+  '引导（{shortcut}）': 'Steer ({shortcut})',
   停止生成: 'Stop generation',
   松开即可添加附件: 'Drop files to attach',
   无法在文件树中定位: 'Failed to navigate tree',

@@ -3,7 +3,7 @@ import type { IpcMainInvokeEvent } from 'electron';
 import fs from 'fs';
 import path from 'path';
 import { TITLE_BAR_HEIGHT } from '../window-manager.js';
-import { setApplicationLanguage } from '../menu.js';
+import { menuLabel, setApplicationLanguage } from '../menu.js';
 import type { WindowRegistry } from '../windows.js';
 import { registerImportFilesIpc } from './import-files.js';
 import { registerAttachmentIpc } from './attachments.js';
@@ -108,6 +108,67 @@ export function registerNativeIpcHandlers(windows: WindowRegistry): void {
     },
   );
 
+
+  // Right-click menu for the shell renderer: text fields, selected text and
+  // links. The host UI had no context menu at all, so Cut/Copy/Paste were
+  // missing from every input on every platform. `role`s act on the focused
+  // window's webContents, so no click round-trip is needed.
+  ipcMain.handle(
+    'pi:menu:context',
+    (
+      event,
+      payload: {
+        x?: number;
+        y?: number;
+        editable?: boolean;
+        hasSelection?: boolean;
+        linkURL?: string;
+      },
+    ) => {
+      const win = senderWindow(windows, event);
+      if (!win) return { ok: false };
+      const link = typeof payload?.linkURL === 'string' ? payload.linkURL : '';
+      const template: Electron.MenuItemConstructorOptions[] = [];
+      if (/^(https?:|mailto:)/i.test(link)) {
+        template.push(
+          {
+            label: menuLabel('openLink'),
+            click: () => {
+              void shell.openExternal(link).catch(() => {});
+            },
+          },
+          { label: menuLabel('copyLink'), click: () => clipboard.writeText(link) },
+          { type: 'separator' },
+        );
+      }
+      if (payload?.editable) {
+        template.push(
+          { role: 'undo', label: menuLabel('undo') },
+          { role: 'redo', label: menuLabel('redo') },
+          { type: 'separator' },
+          { role: 'cut', label: menuLabel('cut') },
+          { role: 'copy', label: menuLabel('copy') },
+          { role: 'paste', label: menuLabel('paste') },
+          { type: 'separator' },
+          { role: 'selectAll', label: menuLabel('selectAll') },
+        );
+      } else if (payload?.hasSelection) {
+        template.push({ role: 'copy', label: menuLabel('copy') });
+      }
+      if (template.length === 0) return { ok: false };
+      // Page-local CSS px → window DIPs (page zoom), same conversion the live
+      // slot bounds use. The shell view itself sits at 0,0.
+      const zoom = event.sender.getZoomFactor?.() ?? 1;
+      const scale = Number.isFinite(zoom) && zoom > 0 ? zoom : 1;
+      const x = typeof payload?.x === 'number' ? Math.round(payload.x * scale) : undefined;
+      const y = typeof payload?.y === 'number' ? Math.round(payload.y * scale) : undefined;
+      Menu.buildFromTemplate(template).popup({
+        window: win,
+        ...(x != null && y != null ? { x, y } : {}),
+      });
+      return { ok: true };
+    },
+  );
 
   ipcMain.handle('pi:window:maximize', (event) => {
     const win = senderWindow(windows, event);

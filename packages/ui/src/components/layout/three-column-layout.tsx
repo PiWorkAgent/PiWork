@@ -226,6 +226,44 @@ export function ThreeColumnLayout({
   const chrome = getHostChrome();
   const draggable = chrome.platform !== 'web';
 
+  // Fullscreen hides the OS window controls. Their reserved insets must
+  // collapse with them, or the header keeps a dead gap on macOS and the layout
+  // toggles stay pushed 138px off the right edge on Windows.
+  const [fullscreen, setFullscreen] = useState(false);
+  useEffect(() => {
+    const api = (window as unknown as {
+      electronAPI?: {
+        on?: (channel: string, cb: (value: unknown) => void) => void;
+        removeListener?: (channel: string, cb: (value: unknown) => void) => void;
+      };
+    }).electronAPI;
+    if (!api?.on) return;
+    const handler = (value: unknown) => setFullscreen(value === true);
+    api.on('pi:window:fullscreen-changed', handler);
+    return () => api.removeListener?.('pi:window:fullscreen-changed', handler);
+  }, []);
+
+  // The host reports window-control insets in DIPs; everything here is sized
+  // in CSS px. Page zoom (View → 缩放) scales CSS px against DIP, so convert.
+  // Without this the toggles slide under the Windows caption buttons again at
+  // Ctrl+− and leave a dead gap at Ctrl++ (same for the macOS traffic lights).
+  const zoomFactor = chrome.zoomFactor;
+  const readZoom = (): number => {
+    const value = zoomFactor?.() ?? 1;
+    return Number.isFinite(value) && value > 0 ? value : 1;
+  };
+  const [zoom, setZoom] = useState(readZoom);
+  useEffect(() => {
+    // Page zoom changes the CSS viewport, which fires `resize`.
+    const onResize = () => setZoom(readZoom());
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+    // `zoomFactor` is a stable reference from the preload bridge.
+  }, [zoomFactor]);
+
+  const insetLeft = fullscreen ? 0 : chrome.insetLeft / zoom;
+  const insetRight = fullscreen ? 0 : chrome.insetRight / zoom;
+
   // Two visible columns, chat on the right of the panel. Only that state has a
   // defined other side: with the sidebar open the chat cannot cross it (they
   // are one flex wrapper), so the preference lies dormant rather than
@@ -251,6 +289,13 @@ export function ThreeColumnLayout({
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
+
+  // Windows paints the native caption buttons via `titleBarOverlay` straight
+  // over the band's top-right corner — exactly where the toggles would land,
+  // which is why the cluster is offset past them and the right-edge segments
+  // reserve both widths. (`insetRight` is 0 on macOS/Linux, whose native
+  // controls live outside this corner.)
+  const trailingReserve = trailingWidth + insetRight;
 
   // Keep refs in sync. During a drag the refs are also written directly by the
   // handlers below so that rapid events accumulate correctly even when React
@@ -554,7 +599,11 @@ export function ThreeColumnLayout({
       {/* No bottom border: the band merges into the body (Codex-style); the
           column separators themselves carry the structure. */}
       <div
-        className="relative flex h-11 shrink-0 select-none items-stretch bg-background"
+        // Fixed 44px, NOT rem: the 字号 setting scales the contents, and a band
+        // that grew with it moved away from the macOS traffic lights (which
+        // AppKit keeps at a fixed offset) and from the Windows overlay height
+        // contract.
+        className="relative flex h-[44px] shrink-0 select-none items-stretch bg-background"
         data-testid="header-band"
         // Marks the band for the drag-region rule in globals.css: interactive
         // descendants opt out, everything else in here drags the window.
@@ -565,7 +614,7 @@ export function ThreeColumnLayout({
           <>
             <div
               className="flex h-full min-w-0 shrink-0 items-center overflow-hidden border-r bg-sidebar"
-              style={{ width: currentLeftWidth, paddingLeft: chrome.insetLeft, transition: widthTransition }}
+              style={{ width: currentLeftWidth, paddingLeft: insetLeft, transition: widthTransition }}
             >
               {leftHeader != null && (
                 <div className="flex min-w-0 items-center gap-0.5">
@@ -584,8 +633,8 @@ export function ThreeColumnLayout({
               order: swapped ? 2 : 0,
               // Leftmost segment carries the traffic-light inset, rightmost
               // reserves the toggles zone — both follow the swap.
-              paddingLeft: sidebarOpen || swapped ? 0 : chrome.insetLeft,
-              paddingRight: swapped || !rightPanelOpen ? trailingWidth : 0,
+              paddingLeft: sidebarOpen || swapped ? 0 : insetLeft,
+              paddingRight: swapped || !rightPanelOpen ? trailingReserve : 0,
             }}
           >
             {centerHeader != null && (
@@ -622,14 +671,14 @@ export function ThreeColumnLayout({
               // Swapped → this segment is the leftmost column and takes the
               // traffic-light inset; otherwise the chat's segment keeps it.
               paddingLeft:
-                (rightTakesCenter || swapped) && !sidebarOpen ? chrome.insetLeft : 0,
+                (rightTakesCenter || swapped) && !sidebarOpen ? insetLeft : 0,
               // The toggles zone sits over this segment's right end — unless
               // the chat has taken that edge.
-              paddingRight: swapped ? 0 : trailingWidth,
+              paddingRight: swapped ? 0 : trailingReserve,
               // Split tab bars need to divide the SAME width as the body panes
               // under them. They read this to cancel the reservation above and
               // then re-reserve it on the rightmost bar (panel-tabs.tsx).
-              ['--header-trailing-width' as string]: `${swapped ? 0 : trailingWidth}px`,
+              ['--header-trailing-width' as string]: `${swapped ? 0 : trailingReserve}px`,
             } as CSSProperties}
           >
             {rightHeader != null && (
@@ -647,7 +696,9 @@ export function ThreeColumnLayout({
             className="pointer-events-none absolute inset-y-0 z-30 flex items-center"
             style={{
               ...NO_DRAG,
-              left: Math.max(72, Math.min(containerWidth - 72, hintX)),
+              // Keep the pill clear of the window caption buttons as well as
+              // the edge (they paint above the DOM on Windows).
+              left: Math.max(72, Math.min(containerWidth - 72 - insetRight, hintX)),
               transform: 'translateX(-50%)',
             }}
           >
@@ -658,8 +709,13 @@ export function ThreeColumnLayout({
         )}
         <div
           ref={trailingRef}
-          className="absolute inset-y-0 right-0 z-10 flex shrink-0 items-center gap-1 px-2"
+          className="absolute inset-y-0 z-10 flex shrink-0 items-center gap-1 px-2"
           data-testid="header-trailing"
+          // Keep the cluster clear of the native caption buttons (Windows).
+          // NO_DRAG: the gaps and padding between the toggles are UI, not
+          // title-bar; dragging there was a surprise right next to the
+          // OS buttons.
+          style={{ right: insetRight, ...NO_DRAG }}
         >
           {headerTrailing}
           {chrome.customControls && <WindowControls />}

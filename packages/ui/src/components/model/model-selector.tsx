@@ -78,6 +78,8 @@ export function ModelSelector({ value, onChange }: ModelSelectorProps) {
   };
 
   const onKeyDown = (event: React.KeyboardEvent) => {
+    // Enter confirming an IME candidate must not select the highlighted model.
+    if (event.nativeEvent.isComposing) return;
     if (event.key === 'ArrowDown') {
       event.preventDefault();
       setHighlight((i) => Math.min(i + 1, flat.length - 1));
