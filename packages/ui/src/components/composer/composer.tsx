@@ -32,6 +32,18 @@ import { canSaveAttachment, pathForFile, saveAttachmentToWorkspace } from '@/lib
 import type { Attachment, ContentBlock, Config, PluginMessageData, SavedAttachment, Skill } from '@pi/types';
 import { SKILL_REFERENCE_MARKER } from '@pi/types';
 
+/**
+ * The steer chord is Ctrl+Enter everywhere except macOS, where the native
+ * convention is ⌘+Enter (the handler accepts both). The hint has to match the
+ * platform — it read `⌃↵` on Macs before.
+ */
+const IS_MAC =
+  typeof window !== 'undefined' &&
+  (window as unknown as { electronAPI?: { chrome?: { platform?: string } } }).electronAPI?.chrome
+    ?.platform === 'darwin';
+const STEER_SHORTCUT = IS_MAC ? '⌘+Enter' : 'Ctrl+Enter';
+const STEER_GLYPH = IS_MAC ? '⌘↵' : '⌃↵';
+
 interface SendVariables {
   content: string;
   sessionId: string;
@@ -916,7 +928,7 @@ export function Composer() {
             items: [
               { name: 'Enter', desc: t('发送消息') },
               { name: 'Shift+Enter', desc: t('换行') },
-              { name: 'Ctrl+Enter', desc: t('流式回复时引导 agent') },
+              { name: STEER_SHORTCUT, desc: t('流式回复时引导 agent') },
               { name: '/', desc: t('打开命令菜单，快速操作') },
               { name: '@', desc: t('提及文件、工作区或会话') },
             ],
@@ -1584,13 +1596,13 @@ export function Composer() {
               onClick={handleSteerSubmit}
               disabled={!value.trim()}
               className="h-8 gap-1.5 text-xs"
-              aria-label={t('引导（Ctrl+Enter）')}
+              aria-label={t('引导（{shortcut}）', { shortcut: STEER_SHORTCUT })}
             >
               <CornerDownRight className="h-3.5 w-3.5" />
               {/* Label and shortcut are the first things to go when the row
                   is squeezed; the aria-label above stays either way. */}
               <span className="@max-[440px]:hidden">{t('引导')}</span>
-              <kbd className="ml-0.5 hidden text-[0.625rem] opacity-60 @[440px]:inline">⌃↵</kbd>
+              <kbd className="ml-0.5 hidden text-[0.625rem] opacity-60 @[440px]:inline">{STEER_GLYPH}</kbd>
             </Button>
             <Button
               size="icon"

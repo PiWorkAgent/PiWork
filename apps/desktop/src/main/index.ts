@@ -6,8 +6,8 @@ import { registerWindowIpcHandlers } from '@main/ipc/windows';
 import { SettingsManager, ModelRegistry, ModelRuntime, getAgentDir } from '@earendil-works/pi-coding-agent';
 import { setSharedModelRuntime } from '@pi/sdk-wrapper/adapters';
 import type { RunSettledInfo } from '@pi/sdk-wrapper/adapters';
-import { copyFileSync, existsSync, mkdirSync, readdirSync } from 'fs';
-import { join } from 'path';
+import { copyFileSync, existsSync, mkdirSync, readdirSync, statSync } from 'fs';
+import { dirname, join } from 'path';
 import { ENGINE_UA, VlmAnalyzer } from '@main/browser';
 import { TextModelClient } from '@main/ai/text-model-client';
 import { McpConfigStore } from '@main/mcp/config-store';
@@ -47,6 +47,14 @@ import type { ToolCatalogEntry } from '@pi/types';
  * the bundle being executed): Dock tooltip, app menu, userData folder.
  */
 app.setName(APP_NAME);
+
+// Windows groups taskbar entries, toasts and jump lists by AppUserModelID.
+// electron-builder stamps the NSIS shortcut with `appId: com.pi.work`; the
+// running process has to report the same id, or plugin notifications are
+// dropped/unattributed and the taskbar shows the raw exe as a separate app.
+if (process.platform === 'win32') {
+  app.setAppUserModelId('com.pi.work');
+}
 
 /**
  * Electron derives userData from the app name, so renaming the product would
@@ -120,6 +128,29 @@ app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion,In
 // "verify you are human" box spinning forever. Set before any window exists.
 app.userAgentFallback = ENGINE_UA;
 
+/**
+ * macOS delivers Finder "Open With" / Dock drops through `open-file`, not
+ * argv — the channel `handleLaunchArgs` parses, which is how a second launch
+ * on Windows/Linux arrives. Queue until the window registry exists; the event
+ * can fire before `whenReady`, and before the first window is restored.
+ */
+const pendingExternalOpens: string[] = [];
+function openExternalTarget(target: string): void {
+  if (!app.isReady()) {
+    pendingExternalOpens.push(target);
+    return;
+  }
+  // A single file opens its containing project, which is what the workspace
+  // model expects; a folder opens itself.
+  let workspace = target;
+  try {
+    if (statSync(target).isFile()) workspace = dirname(target);
+  } catch {
+    // Nonexistent path: open it anyway and let the workspace surface the error.
+  }
+  windows.handleLaunchArgs([`--workspace=${workspace}`], { secondInstance: true });
+}
+
 const gotLock = app.requestSingleInstanceLock();
 
 // Register the plugin scheme BEFORE app ready — every plugin panel is served
@@ -132,6 +163,12 @@ if (!gotLock) {
 } else {
   app.on('second-instance', (_event, argv) => {
     windows.handleLaunchArgs(argv, { secondInstance: true });
+  });
+
+  // macOS-only in practice; harmless elsewhere, where the event never fires.
+  app.on('open-file', (event, filePath) => {
+    event.preventDefault();
+    openExternalTarget(filePath);
   });
 
   app.whenReady().then(async () => {
@@ -279,6 +316,9 @@ if (!gotLock) {
     if (windows.restoreWindows() === 0) {
       windows.create({ ...(windows.lastState ?? {}) });
     }
+
+    // Finder/Dock requests that arrived before the registry was ready.
+    for (const target of pendingExternalOpens.splice(0)) openExternalTarget(target);
 
     // Plugin kernel: scan ~/.pi/agent/plugins (plus the dev root when set),
     // spawn backend UtilityProcesses, serve pi-plugin:// and expose IPC.
@@ -466,7 +506,13 @@ if (!gotLock) {
 
     // Plugin kernel boot. The SDK IPC handlers above are already live, so a
     // fast file:// renderer never sees a missing handler while backends spawn.
-    await pluginSystem.init();
+    // Guarded: a failed kernel degrades the plugin features, but must not skip
+    // the window/menu/tool wiring below it.
+    try {
+      await pluginSystem.init();
+    } catch (err) {
+      console.error('[plugins] init failed:', err instanceof Error ? err.message : err);
+    }
 
     // Every window gets its own panel views now; windows created later get
     // theirs inside WindowRegistry.create().
@@ -591,37 +637,51 @@ app.on('window-all-closed', () => {
  * On Windows, detect the bundled MinGit environment (shipped as
  * extraResources) and configure SettingsManager to use it.
  *
- * Standard MinGit provides:
- *   - bash.exe (GNU Bash 4.x)             → set as shellPath (preferred)
- *   - ash.exe (BusyBox POSIX shell)       → fallback if bash.exe is missing
+ * The BUSYBOX MinGit flavor (what download-bash-bundle.cjs fetches) provides:
+ *   - ash.exe (BusyBox POSIX shell)       → set as shellPath
+ *   - optional bash.exe, if a bundle adds one (preferred when present)
  *   - git.exe                            → added to PATH
- *   - GNU coreutils (ls, cat…)           → added to PATH
+ *   - BusyBox coreutils (ls, cat…)       → added to PATH
+ *
+ * Standard MinGit ships no shell at all, which is why the build requires the
+ * busybox flavor and fails rather than packaging an installer without one.
  *
  * This is a no-op on macOS and Linux, where the OS ships a shell natively.
  */
 function injectBundledShell(settingsManager: SettingsManager): void {
   if (process.platform !== 'win32') return;
 
-  // process.resourcesPath → app's resources directory.
-  // The bundled shell is at resources/bash-bundle/ (from extraResources).
-  const bundleRoot = join(process.resourcesPath, 'bash-bundle');
+  // Packaged: resources/bash-bundle/ (extraResources). Dev: `resourcesPath`
+  // points into Electron's own dist, so also look beside the app sources —
+  // otherwise a Windows dev machine without Git for Windows reports "no shell"
+  // while the downloaded bundle sits in the repo.
+  const bundleRoots = [join(process.resourcesPath, 'bash-bundle')];
+  if (!app.isPackaged) bundleRoots.push(join(app.getAppPath(), 'bash-bundle'));
 
   // BusyBox MinGit ships ash.exe (POSIX sh, limited but functional) next to
   // busybox.exe. MinGit ≤2.55 lays this out under mingw64/bin/; 2.56+ moved
   // to ucrt64/bin/ — search both, plus the generic locations.
   const shellNames = ['bash.exe', 'ash.exe'];
-  const binDirs = ['mingw64/bin', 'ucrt64/bin', 'bin', 'usr/bin'].map((d) => join(bundleRoot, d));
+  const BIN_SUBDIRS = ['mingw64/bin', 'ucrt64/bin', 'bin', 'usr/bin'];
 
+  let bundleRoot: string | null = null;
   let shellPath: string | null = null;
-  for (const dir of binDirs) {
-    for (const name of shellNames) {
-      const p = join(dir, name);
-      if (existsSync(p)) { shellPath = p; break; }
+  for (const root of bundleRoots) {
+    for (const sub of BIN_SUBDIRS) {
+      for (const name of shellNames) {
+        const candidate = join(root, sub, name);
+        if (existsSync(candidate)) {
+          bundleRoot = root;
+          shellPath = candidate;
+          break;
+        }
+      }
+      if (shellPath) break;
     }
     if (shellPath) break;
   }
 
-  if (!shellPath) {
+  if (!shellPath || !bundleRoot) {
     console.warn('[bash-bundle] No bundled shell found. Falling back to system Git Bash search.');
     // Bundled shell not found. SDK will fall back to searching for Git
     // Bash on the system, then show a clear error if nothing is found.
@@ -630,7 +690,7 @@ function injectBundledShell(settingsManager: SettingsManager): void {
 
   // Integrity check: warn (but proceed) if git.exe is missing — the agent
   // can still run bash commands, but git operations will fail.
-  const gitCandidates = ['mingw64/bin', 'ucrt64/bin', 'cmd'].map((d) => join(bundleRoot, d, 'git.exe'));
+  const gitCandidates = ['mingw64/bin', 'ucrt64/bin', 'cmd'].map((d) => join(bundleRoot!, d, 'git.exe'));
   const gitExe = gitCandidates.find((p) => existsSync(p));
   if (!gitExe) {
     console.warn(`[bash-bundle] git.exe not found (searched ${gitCandidates.join(', ')}). Git operations may fail.`);

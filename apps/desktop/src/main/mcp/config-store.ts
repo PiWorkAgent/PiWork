@@ -17,8 +17,8 @@
  *     `tool_search`; PiWork maps everything except `hidden` to `deferred`
  */
 
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { existsSync, mkdirSync, readFileSync, realpathSync, renameSync, writeFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
 import { getAgentDir } from '@earendil-works/pi-coding-agent';
 import type { LoadedMcpConfig, McpServerConfig, McpServerEntry } from '@earendil-works/pi-coding-agent';
 import type {
@@ -293,6 +293,27 @@ interface TrustFile {
   trusted: string[];
 }
 
+/**
+ * One comparable spelling of a workspace path.
+ *
+ * Trust was matched with `===`, so the same folder reached through a symlink
+ * (`/tmp/x` vs `/private/tmp/x` on macOS) or a different drive-letter case /
+ * spelling (`C:\Repo` vs `c:\repo`) read as untrusted and its `.pi/mcp.json`
+ * was silently ignored. Resolve links when possible and case-fold on the
+ * case-insensitive platforms (Windows; macOS in practice).
+ */
+function canonicalPath(p: string): string {
+  let resolved: string;
+  try {
+    resolved = realpathSync.native(p);
+  } catch {
+    resolved = resolve(p);
+  }
+  return process.platform === 'win32' || process.platform === 'darwin'
+    ? resolved.toLowerCase()
+    : resolved;
+}
+
 export class McpConfigStore {
   private readonly agentDirOption?: string;
   private readonly trustPathOption?: string;
@@ -321,14 +342,23 @@ export class McpConfigStore {
   // ── Trust ──
 
   isWorkspaceTrusted(workspacePath: string): boolean {
-    return this.readTrust().trusted.some((entry) => entry === workspacePath);
+    const wanted = canonicalPath(workspacePath);
+    return this.readTrust().trusted.some((entry) => canonicalPath(entry) === wanted);
   }
 
   setWorkspaceTrusted(workspacePath: string, trusted: boolean): void {
     const file = this.readTrust();
+    const wanted = canonicalPath(workspacePath);
     const next = new Set(file.trusted);
-    if (trusted) next.add(workspacePath);
-    else next.delete(workspacePath);
+    // Match on the canonical form so case-different or symlinked aliases of an
+    // already-trusted workspace are not added twice (and can actually be
+    // removed again).
+    const existing = [...next].find((entry) => canonicalPath(entry) === wanted);
+    if (trusted) {
+      if (!existing) next.add(workspacePath);
+    } else if (existing) {
+      next.delete(existing);
+    }
     this.writeJson(this.trustPath, { version: CONFIG_VERSION, trusted: [...next] });
   }
 

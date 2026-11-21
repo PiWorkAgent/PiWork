@@ -18,15 +18,27 @@ import { uniquePath } from './import-files.js';
 /** Where attachments live, relative to the workspace root. */
 export const ATTACHMENTS_DIR = '.piwork/attachments';
 
+/** Win32 device names are reserved even with an extension (`CON.txt`). */
+const WINDOWS_RESERVED_RE = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$/i;
+
 function safeName(raw: unknown): string {
   const base = basename(String(raw ?? '').replace(/\\/g, '/')).trim();
   const cleaned = base.replace(/[\u0000-\u001f\u007f]/g, '').trim();
-  if (!cleaned || cleaned === '.' || cleaned === '..') return 'attachment';
-  if (cleaned.length <= 180) return cleaned;
+  // Characters Win32 rejects outright (`< > : " / \ | ? *`), plus the trailing
+  // dots/spaces Win32 silently normalizes — leaving those in makes `writeFile`
+  // fail with EINVAL on Windows, or collapses two names into one and defeats
+  // the collision check.
+  const sanitized = cleaned
+    .replace(/[<>:"/\\|?*]/g, '_')
+    .replace(/[. ]+$/, '')
+    .trim();
+  if (!sanitized || sanitized === '.' || sanitized === '..') return 'attachment';
+  const safe = WINDOWS_RESERVED_RE.test(sanitized) ? `_${sanitized}` : sanitized;
+  if (safe.length <= 180) return safe;
   // Keep the extension when truncating an absurdly long name.
-  const ext = extname(cleaned);
+  const ext = extname(safe);
   const stemLimit = Math.max(1, 180 - ext.length);
-  return cleaned.slice(0, stemLimit) + ext;
+  return safe.slice(0, stemLimit) + ext;
 }
 
 function isWithin(child: string, parent: string): boolean {

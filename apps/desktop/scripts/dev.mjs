@@ -61,11 +61,18 @@ if (existsSync(electronDir) && !existsSync(join(electronDir, 'path.txt'))) {
   }
 }
 
-const result = spawnSync(bin, ['dev', ...process.argv.slice(2)], {
-  stdio: 'inherit',
-  env,
-  // .cmd shims on Windows are not executables; everything else runs directly.
-  shell: process.platform === 'win32',
-});
+const args = ['dev', ...process.argv.slice(2)];
+// .cmd shims on Windows are not executables, so they need a shell — and with
+// a shell, arguments must be quoted by hand (the repo path may contain
+// spaces; Node's shell mode joins args without quoting).
+const quoteArg = (value) => (/[\s"]/.test(value) ? `"${value.replace(/"/g, '\\"')}"` : value);
+const result =
+  process.platform === 'win32'
+    ? spawnSync([bin, ...args].map(quoteArg).join(' '), {
+        stdio: 'inherit',
+        env,
+        shell: true,
+      })
+    : spawnSync(bin, args, { stdio: 'inherit', env });
 
 process.exit(result.status ?? 1);

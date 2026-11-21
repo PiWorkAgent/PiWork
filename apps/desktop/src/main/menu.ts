@@ -52,6 +52,8 @@ const MENU_LABELS: Record<MenuLanguage, Record<string, string>> = {
     help: '帮助',
     reportBug: '报告问题',
     suggestFeature: '功能建议',
+    openLink: '在浏览器中打开链接',
+    copyLink: '复制链接地址',
   },
   en: {
     about: `About ${APP_NAME}`,
@@ -89,8 +91,19 @@ const MENU_LABELS: Record<MenuLanguage, Record<string, string>> = {
     help: 'Help',
     reportBug: 'Report a Bug',
     suggestFeature: 'Suggest a Feature',
+    openLink: 'Open Link in Browser',
+    copyLink: 'Copy Link Address',
   },
 };
+
+/**
+ * One localized label for native menus built outside this module (the shell's
+ * right-click context menu in `ipc/native.ts`). Falls back to English, then to
+ * the key itself.
+ */
+export function menuLabel(key: string): string {
+  return MENU_LABELS[language][key] ?? MENU_LABELS.en[key] ?? key;
+}
 
 /**
  * The language the menu is currently drawn in. The renderer owns the real

@@ -1,5 +1,5 @@
-import { useMemo, type CSSProperties, type ReactNode } from 'react';
-import { Columns2, Minus, PanelLeft, PanelRight, Square, X, ArrowLeftRight } from 'lucide-react';
+import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
+import { Columns2, Copy, Minus, PanelLeft, PanelRight, Square, X, ArrowLeftRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUIStore } from '@/stores/ui-store';
 import { usePanelStore } from '@/stores/panel-store';
@@ -29,6 +29,8 @@ export interface HostChrome {
   insetRight: number;
   /** Host draws its own minimize/maximize/close (Linux frameless). */
   customControls: boolean;
+  /** Page zoom (CSS px per DIP); the insets above are DIPs. */
+  zoomFactor?: () => number;
 }
 
 const WEB_CHROME: HostChrome = {
@@ -36,6 +38,7 @@ const WEB_CHROME: HostChrome = {
   insetLeft: 0,
   insetRight: 0,
   customControls: false,
+  zoomFactor: () => 1,
 };
 
 /**
@@ -177,11 +180,47 @@ export function LayoutToggles() {
  *  the layout's header-trailing zone. */
 export function WindowControls() {
   const { t } = useI18n();
+  // The glyph has to follow the window's real state: a maximized frameless
+  // window kept showing the "maximize" square on Linux, so there was no way to
+  // tell the two states apart.
+  const [maximized, setMaximized] = useState(false);
+  const api = (window as unknown as {
+    electronAPI?: { invoke?: (c: string, ...a: unknown[]) => Promise<unknown> };
+  }).electronAPI;
   const invoke = (channel: string) => {
-    const api = (window as unknown as {
-      electronAPI?: { invoke?: (c: string, ...a: unknown[]) => Promise<unknown> };
-    }).electronAPI;
     api?.invoke?.(channel).catch(() => {});
+  };
+
+  useEffect(() => {
+    if (!api?.invoke) return;
+    let alive = true;
+    const refresh = () => {
+      api
+        .invoke?.('pi:window:isMaximized')
+        .then((value) => {
+          if (alive) setMaximized(value === true);
+        })
+        .catch(() => {});
+    };
+    refresh();
+    // Double-click on the band and WM gestures maximize too; resize is the
+    // renderer-side signal for both.
+    window.addEventListener('resize', refresh);
+    return () => {
+      alive = false;
+      window.removeEventListener('resize', refresh);
+    };
+  }, [api]);
+
+  const toggleMaximize = () => {
+    invoke('pi:window:maximize');
+    // The WM settles asynchronously; still refresh in case no resize fires.
+    setTimeout(() => {
+      api
+        ?.invoke?.('pi:window:isMaximized')
+        .then((value) => setMaximized(value === true))
+        .catch(() => {});
+    }, 120);
   };
 
   return (
@@ -196,11 +235,11 @@ export function WindowControls() {
       </button>
       <button
         type="button"
-        aria-label={t('最大化')}
+        aria-label={t(maximized ? '还原' : '最大化')}
         className="flex w-11 items-center justify-center text-muted-foreground hover:bg-accent"
-        onClick={() => invoke('pi:window:maximize')}
+        onClick={toggleMaximize}
       >
-        <Square className="h-3 w-3" />
+        {maximized ? <Copy className="h-3 w-3 -scale-x-100" /> : <Square className="h-3 w-3" />}
       </button>
       <button
         type="button"

@@ -1,10 +1,11 @@
 /**
  * Resolution hooks used by `register.mjs`. Runs on Node's loader thread, so it
- * must stay dependency-free and synchronous.
+ * stays synchronous; the only dependency is the workspace's `typescript`.
  */
 
-import { statSync } from 'node:fs';
+import { statSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import ts from 'typescript';
 
 /** Stand-in for the `electron` module — see electron-stub.mjs. */
 const electronStub = new URL('./electron-stub.mjs', import.meta.url).href;
@@ -31,6 +32,31 @@ const MAIN_BASE = new URL('../../src/main/', import.meta.url);
 /** `@/foo` → `packages/ui/src/foo` (the UI package's `paths` alias). */
 const UI_PREFIX = '@/';
 const UI_BASE = new URL('../../../../packages/ui/src/', import.meta.url);
+
+/**
+ * Transpile app sources with TypeScript itself.
+ *
+ * Node's built-in type stripping is strip-only on current versions (the
+ * `--experimental-transform-types` flag is gone), and it cannot handle
+ * TypeScript features the sources use (parameter properties). A full
+ * transpile per module keeps the tests runnable on every supported Node.
+ */
+export async function load(url, context, nextLoad) {
+  if (url.startsWith('file:') && url.endsWith('.ts')) {
+    const source = readFileSync(fileURLToPath(url), 'utf8');
+    const { outputText } = ts.transpileModule(source, {
+      fileName: fileURLToPath(url),
+      compilerOptions: {
+        module: ts.ModuleKind.ESNext,
+        target: ts.ScriptTarget.ES2022,
+        isolatedModules: true,
+        esModuleInterop: true,
+      },
+    });
+    return { format: 'module', source: outputText, shortCircuit: true };
+  }
+  return nextLoad(url, context);
+}
 
 export async function resolve(specifier, context, nextResolve) {
   if (specifier === 'electron') {

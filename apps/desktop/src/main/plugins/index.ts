@@ -24,6 +24,7 @@ import { PluginProcess, spawnBackend } from './plugin-process';
 import { takeToolSession } from './session-context';
 import { registerPluginProtocolHandler } from './protocol';
 import { PluginMarketplace } from './marketplace';
+import { retryFs } from './fs-retry';
 import { shouldAutoRollback } from './install-policy';
 import type { AgentCustomTool } from '@main/agent-tools';
 import { toolContracts } from '@main/tools/contracts';
@@ -205,8 +206,16 @@ export class PluginSystem {
   }
 
   private async doInit(): Promise<void> {
-    this.registry.scan();
-    registerPluginProtocolHandler(this.registry);
+    // Kernel boot must not take the rest of the app down with it: this runs
+    // inside the main process's ready chain, and anything thrown here used to
+    // reject `init()` — skipping the menu, tool catalog, quit hooks and
+    // session retirement that follow it.
+    try {
+      this.registry.scan();
+      registerPluginProtocolHandler(this.registry);
+    } catch (err) {
+      console.error('[plugins] registry scan failed:', err instanceof Error ? err.message : err);
+    }
 
     const appVersion = app.getVersion();
     for (const plugin of this.registry.all()) {
@@ -215,7 +224,14 @@ export class PluginSystem {
         console.warn(`[plugins] ${plugin.manifest.id} incompatible: ${plugin.error}`);
         continue;
       }
-      this.syncPluginSkills(plugin);
+      try {
+        this.syncPluginSkills(plugin);
+      } catch (err) {
+        console.warn(
+          `[plugins] skill sync failed for ${plugin.manifest.id}:`,
+          err instanceof Error ? err.message : err,
+        );
+      }
       if (!plugin.manifest.backend) {
         // UI-only plugin — nothing to start, but it is live as soon as it is
         // enabled. Leaving it 'registered' made the plugin center print 已注册
@@ -764,13 +780,16 @@ export class PluginSystem {
     this.stopPlugin(pluginId);
     this.removePluginSkills(pluginId);
     try {
-      rmSync(plugin.rootPath, { recursive: true, force: true });
+      // Windows may still hold handles on the just-stopped backend's files.
+      retryFs(() => rmSync(plugin.rootPath, { recursive: true, force: true }));
       // The kept previous version is code too. Leaving it behind held tens of
       // megabytes for a plugin that is no longer installed, and a later
       // reinstall inherited a "previous version" it never upgraded from.
-      rmSync(this.registry.getPreviousDir(pluginId), { recursive: true, force: true });
+      retryFs(() => rmSync(this.registry.getPreviousDir(pluginId), { recursive: true, force: true }));
       if (opts?.keepData === false) {
-        rmSync(this.registry.getDataDir(pluginId), { recursive: true, force: true });
+        retryFs(() =>
+          rmSync(this.registry.getDataDir(pluginId), { recursive: true, force: true }),
+        );
       }
       this.registry.scan();
       this.refreshRuntimeStates();

@@ -172,10 +172,16 @@ export class WindowRegistry implements BrowserRouter {
     const windows: PersistedWindowState[] = [];
     for (const ctx of this.byWindowId.values()) {
       if (ctx.win.isDestroyed()) continue;
+      const maximized = ctx.win.isMaximized();
+      const fullscreen = ctx.win.isFullScreen();
       windows.push({
         layoutId: ctx.layoutId,
-        bounds: ctx.win.getBounds(),
-        maximized: ctx.win.isMaximized(),
+        // `getBounds()` while maximized/fullscreen is the *current* frame, so
+        // restoring it made that the window's normal size: un-maximizing then
+        // did nothing on macOS, and Windows restored to a frame wider than the
+        // work area (it includes the invisible resize borders).
+        bounds: maximized || fullscreen ? ctx.win.getNormalBounds() : ctx.win.getBounds(),
+        maximized,
         workspaceId: ctx.workspaceId,
         workspacePath: ctx.workspacePath,
         sessionId: ctx.activeSessionId,

@@ -31,6 +31,7 @@
 
 const https = require('https');
 const http = require('http');
+const tls = require('tls');
 const { URL } = require('url');
 const { execSync } = require('child_process');
 const fs = require('fs');
@@ -40,6 +41,11 @@ const { promisify } = require('util');
 const streamPipeline = promisify(pipeline);
 
 const FORCE = process.argv.includes('--force');
+// Escape hatch for a deliberately shell-less/source-only build. The default is
+// to FAIL when no usable bundle is on disk: the copy is only a warning in
+// electron-builder, so a silent no-op here used to ship a green Windows
+// installer whose agent had no shell at all.
+const ALLOW_MISSING = process.argv.includes('--allow-missing');
 const PINNED_VERSION = process.env.GIT_FOR_WINDOWS_VERSION || 'latest';
 const APPS_DIR = path.resolve(__dirname, '..');
 const BUNDLE_DIR = path.join(APPS_DIR, 'bash-bundle');
@@ -65,25 +71,60 @@ function detectProxy(targetUrl) {
   return null;
 }
 
+/**
+ * HTTPS-over-HTTP-CONNECT agent.
+ *
+ * `new https.Agent({ createConnection })` is NOT a thing — Agent ignores that
+ * constructor option (it calls the prototype method), so the old version here
+ * silently went direct and failed on proxy-only networks. Subclassing and
+ * overriding the method is the supported route; the returned socket must also
+ * be TLS-wrapped, since https.Agent expects a secure socket.
+ */
+class HttpsProxyAgent extends https.Agent {
+  constructor(proxyUrl) {
+    super({ keepAlive: false });
+    this.proxy = new URL(proxyUrl);
+    this.proxyAuth = this.proxy.username
+      ? 'Basic ' +
+        Buffer.from(
+          `${decodeURIComponent(this.proxy.username)}:${decodeURIComponent(this.proxy.password)}`,
+        ).toString('base64')
+      : null;
+  }
+
+  createConnection(options, callback) {
+    const host = options.host;
+    const port = options.port || 443;
+    const headers = { Host: `${host}:${port}` };
+    if (this.proxyAuth) headers['Proxy-Authorization'] = this.proxyAuth;
+
+    const req = http.request({
+      host: this.proxy.hostname,
+      port: parseInt(this.proxy.port, 10) || 3128,
+      method: 'CONNECT',
+      path: `${host}:${port}`,
+      headers,
+      agent: false,
+    });
+    req.once('connect', (res, socket) => {
+      if (res.statusCode !== 200) {
+        socket.destroy();
+        callback(new Error(`Proxy CONNECT failed: ${res.statusCode}`));
+        return;
+      }
+      const secure = tls.connect(
+        { socket, servername: options.servername || host },
+        () => callback(null, secure),
+      );
+      secure.once('error', callback);
+    });
+    req.once('error', callback);
+    req.end();
+  }
+}
+
 function createProxyAgent(proxyUrl) {
-  const proxy = new URL(proxyUrl);
-  return new https.Agent({
-    createConnection: (options, callback) => {
-      const socket = http.request({
-        host: proxy.hostname,
-        port: parseInt(proxy.port) || 3128,
-        method: 'CONNECT',
-        path: `${options.hostname}:${options.port || 443}`,
-        headers: { 'Host': `${options.hostname}:${options.port || 443}` },
-      });
-      socket.on('connect', (res, sock) => {
-        if (res.statusCode === 200) callback(null, sock);
-        else callback(new Error(`Proxy CONNECT failed: ${res.statusCode}`));
-      });
-      socket.on('error', callback);
-      socket.end();
-    },
-  });
+  return new HttpsProxyAgent(proxyUrl);
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -155,6 +196,40 @@ function getCachedVersion() {
     }
   } catch {}
   return null;
+}
+
+/** A bundle the app can actually use (injectBundledShell's search order). */
+function hasUsableBundle() {
+  const candidates = [
+    'ucrt64/bin/bash.exe',
+    'ucrt64/bin/ash.exe',
+    'mingw64/bin/bash.exe',
+    'mingw64/bin/ash.exe',
+    'bin/bash.exe',
+    'bin/ash.exe',
+    'usr/bin/bash.exe',
+  ];
+  return candidates.some((rel) => fs.existsSync(path.join(BUNDLE_DIR, rel)));
+}
+
+/**
+ * End the run after a failure: reuse an existing bundle, or stop the build
+ * instead of producing an installer with a dead shell.
+ */
+function failWithoutBundle(reason) {
+  if (hasUsableBundle()) {
+    log(`Reusing existing bundle — ${reason}`);
+    return;
+  }
+  if (ALLOW_MISSING) {
+    warn(`${reason} — continuing WITHOUT a bundled shell (--allow-missing).`);
+    return;
+  }
+  throw new Error(
+    `${reason} — no usable bash bundle. Refusing to build a Windows package ` +
+    'with no shell. Fix the network/proxy, set GIT_FOR_WINDOWS_VERSION to a ' +
+    'reachable release, provide bash-bundle/ yourself, or pass --allow-missing.',
+  );
 }
 
 function dirSize(dir) {
@@ -245,7 +320,7 @@ async function main() {
       log(`Reusing cached bundle (${cachedVersion}).`);
       return;
     }
-    warn('No cached bundle. Build will proceed without bundled bash.');
+    failWithoutBundle('Failed to resolve the Git for Windows release');
     return;
   }
 
@@ -258,15 +333,20 @@ async function main() {
   // so match the known-good exact name first, then fall back to the shape.
   const cleanVersion = tag.replace(/^v/, '').replace(/\.windows\.\d+$/, '');
   // busybox flavor — see the header comment for why standard MinGit is not usable.
-  const assetName = `MinGit-${cleanVersion}-busybox-64-bit.zip`;
+  // Upstream names x64 `…-64-bit.zip` and arm64 `…-arm64.zip`; picking the
+  // x64 tree for an arm64 installer only worked under x64 emulation (and not
+  // at all on Windows 10 ARM).
+  const archToken =
+    process.argv.includes('--arm64') || process.arch === 'arm64' ? 'arm64' : '64-bit';
+  const assetName = `MinGit-${cleanVersion}-busybox-${archToken}.zip`;
   const asset =
     assets.find((a) => a.name === assetName) ??
-    assets.find((a) => /^MinGit-[\d.]+-busybox-64-bit\.zip$/i.test(a.name));
+    assets.find((a) => new RegExp(`^MinGit-[\\d.]+-busybox-${archToken}\\.zip$`, 'i').test(a.name));
 
   if (!asset) {
-    warn(`Asset "${assetName}" (or any MinGit-*-busybox-64-bit.zip) not found in release ${tag}.`);
+    warn(`Asset "${assetName}" (or any MinGit-*-busybox-${archToken}.zip) not found in release ${tag}.`);
     if (cachedVersion) return log(`Reusing cached (${cachedVersion}).`);
-    warn('Build will proceed without bundled bash.');
+    failWithoutBundle(`No busybox MinGit asset for ${process.arch} in ${tag}`);
     return;
   }
 
@@ -278,8 +358,12 @@ async function main() {
     await downloadFile(asset.browser_download_url, zipPath);
   } catch (err) {
     warn(`Download failed: ${err.message}`);
-    if (cachedVersion) log(`Reusing cached bundle (${cachedVersion}).`);
     try { fs.unlinkSync(zipPath); } catch {}
+    if (cachedVersion) {
+      log(`Reusing cached bundle (${cachedVersion}).`);
+      return;
+    }
+    failWithoutBundle('Download failed');
     return;
   }
 
@@ -290,6 +374,7 @@ async function main() {
     warn(`Extraction failed: ${err.message}`);
     try { fs.unlinkSync(zipPath); } catch {}
     rmdir(TEMP_DIR);
+    failWithoutBundle('Extraction failed');
     return;
   }
 
@@ -299,8 +384,8 @@ async function main() {
   // multiple top-level entries → copy everything.
   const entries = fs.readdirSync(TEMP_DIR, { withFileTypes: true });
   if (entries.length === 0) {
-    warn('No files in extracted archive.');
     rmdir(TEMP_DIR);
+    failWithoutBundle('Extracted archive was empty');
     return;
   }
 
@@ -331,6 +416,18 @@ async function main() {
     fs.cpSync(copySource, BUNDLE_DIR, { recursive: true });
   }
 
+  // ── Verify the copy actually produced a shell ──
+  // The copy can "succeed" while extracting an archive shape we do not
+  // recognize; the build must not continue on that.
+  if (!hasUsableBundle()) {
+    rmdir(BUNDLE_DIR);
+    try { fs.unlinkSync(zipPath); } catch {}
+    rmdir(TEMP_DIR);
+    throw new Error(
+      `Extracted MinGit ${tag} has no usable shell (searched ucrt64/bin, mingw64/bin, bin)`,
+    );
+  }
+
   // ── Version marker ──
   fs.writeFileSync(VERSION_FILE, tag, 'utf-8');
 
@@ -345,6 +442,13 @@ async function main() {
 
 main().catch((err) => {
   warn(`Unexpected error: ${err.message}`);
-  warn('Build will proceed without bundled bash.');
-  process.exit(0);
+  if (ALLOW_MISSING || hasUsableBundle()) {
+    warn('Continuing with the existing (or explicitly waived) bundle.');
+    process.exit(0);
+  }
+  console.error(
+    '[bash-bundle] ERROR: no usable shell bundle. The Windows installer would ship ' +
+    'without a shell — failing the build. (Pass --allow-missing to override.)',
+  );
+  process.exit(1);
 });

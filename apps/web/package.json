@@ -7,7 +7,7 @@
     "dev": "vite --port 5173",
     "build": "tsc && vite build",
     "typecheck": "tsc --noEmit",
-    "clean": "rm -rf dist"
+    "clean": "node ../../scripts/clean.mjs dist"
   },
   "dependencies": {
     "@earendil-works/pi-coding-agent": "^1.5.0",

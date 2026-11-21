@@ -30,6 +30,6 @@
     "prepublishOnly": "tsc",
     "typecheck": "tsc --noEmit",
     "test": "node tests/smoke.mjs",
-    "clean": "rm -rf dist *.tsbuildinfo"
+    "clean": "node ../../scripts/clean.mjs dist \"*.tsbuildinfo\""
   }
 }

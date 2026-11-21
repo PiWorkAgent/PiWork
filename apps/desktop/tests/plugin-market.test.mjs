@@ -19,6 +19,23 @@ import {
   undeclaredPermissions,
 } from '../src/main/plugins/marketplace.ts';
 import { shouldAutoRollback } from '../src/main/plugins/install-policy.ts';
+import { isSafePluginId, isSafePluginVersion } from '../src/main/plugins/registry.ts';
+
+test('catalog id/version cannot escape the staging directory', () => {
+  // These become `<id>-<version>` under `.staging` before the zip's manifest
+  // is trusted, so the catalog index itself is the trust boundary.
+  assert.equal(isSafePluginId('com.pi.files'), true);
+  assert.equal(isSafePluginId('../../evil'), false);
+  assert.equal(isSafePluginId('a/b'), false);
+  assert.equal(isSafePluginId('..'), false);
+  assert.equal(isSafePluginId(''), false);
+
+  assert.equal(isSafePluginVersion('0.6.0'), true);
+  assert.equal(isSafePluginVersion('1.0.0-beta.1+build'), true);
+  assert.equal(isSafePluginVersion('../0.1'), false);
+  assert.equal(isSafePluginVersion('0.1/0.2'), false);
+  assert.equal(isSafePluginVersion('0..1'), false);
+});
 
 test('the default registry is the latest release index of the plugins repo', () => {
   assert.match(DEFAULT_REGISTRY_URL, /^https:\/\/github\.com\/[^/]+\/[^/]+\/releases\/latest\/download\/index\.json$/);

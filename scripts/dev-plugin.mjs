@@ -70,11 +70,23 @@ try {
 
 // ── Launch ─────────────────────────────────────────────────────────────
 const pnpm = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
-const child = spawn(pnpm, ['--filter', '@pi/desktop', 'dev', ...process.argv.slice(2)], {
-  stdio: 'inherit',
-  env: process.env,
-  cwd: REPO,
-});
+const pnpmArgs = ['--filter', '@pi/desktop', 'dev', ...process.argv.slice(2)];
+// `.cmd` shims need a shell on Node ≥20.12 (EINVAL); quote args because the
+// repo path may contain spaces.
+const quoteArg = (value) => (/[\s"]/.test(value) ? `"${value.replace(/"/g, '\\"')}"` : value);
+const child =
+  process.platform === 'win32'
+    ? spawn([pnpm, ...pnpmArgs].map(quoteArg).join(' '), {
+        stdio: 'inherit',
+        env: process.env,
+        cwd: REPO,
+        shell: true,
+      })
+    : spawn(pnpm, pnpmArgs, {
+        stdio: 'inherit',
+        env: process.env,
+        cwd: REPO,
+      });
 
 child.on('exit', (code, signal) => {
   if (signal) process.kill(process.pid, signal);

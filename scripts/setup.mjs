@@ -25,9 +25,24 @@ import { fileURLToPath } from 'node:url';
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const PNPM = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
 
+/** Quote one argument for cmd.exe, which is the shell on Windows. */
+function quoteArg(value) {
+  return /[\s"]/.test(value) ? `"${value.replace(/"/g, '\\"')}"` : value;
+}
+
 function run(cmd, args) {
   console.log(`\n━━━ ${cmd} ${args.join(' ')}`);
-  const res = spawnSync(cmd, args, { cwd: REPO, stdio: 'inherit', env: process.env });
+  // `.cmd` shims cannot be spawned without a shell on Node ≥20.12 (EINVAL),
+  // and the repo path may contain spaces, so build one quoted command line.
+  const res =
+    process.platform === 'win32'
+      ? spawnSync([cmd, ...args].map(quoteArg).join(' '), {
+          cwd: REPO,
+          stdio: 'inherit',
+          env: process.env,
+          shell: true,
+        })
+      : spawnSync(cmd, args, { cwd: REPO, stdio: 'inherit', env: process.env });
   if (res.error) {
     console.error(`[setup] failed to spawn ${cmd}: ${res.error.message}`);
     process.exit(1);

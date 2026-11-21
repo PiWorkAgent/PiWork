@@ -108,6 +108,9 @@ export function SessionHeader() {
             onChange={(e) => setDraft(e.target.value)}
             onBlur={commitRename}
             onKeyDown={(e) => {
+              // Enter that confirms an IME candidate (CJK input) must not
+              // commit the rename with the uncommitted text.
+              if (e.nativeEvent.isComposing) return;
               if (e.key === 'Enter') commitRename();
               if (e.key === 'Escape') cancelRename();
             }}

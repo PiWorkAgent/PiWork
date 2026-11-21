@@ -7,7 +7,8 @@ import type { MarketEntry, MarketIndex, PluginManifest } from '@pi/types';
 import { MIN_SUPPORTED_API_VERSION, PLUGIN_PROTOCOL_VERSION } from '@pi/types';
 import type { PluginRegistry } from './registry';
 import { satisfiesVersion } from './semver';
-import { HOST_ENGINE_KEY } from './registry';
+import { HOST_ENGINE_KEY, isSafePluginId, isSafePluginVersion } from './registry';
+import { retryFs } from './fs-retry';
 
 /**
  * The official registry: a static index published as an asset on the
@@ -252,6 +253,19 @@ export class PluginMarketplace {
     entry: MarketEntry,
     onPhase?: (phase: 'downloading' | 'verifying' | 'installing') => void,
   ): Promise<{ stagedDir: string; manifest: PluginManifest }> {
+    // The catalog's id/version become filesystem path segments below
+    // (`<id>-<version>` under `.staging`) BEFORE the zip's manifest is read,
+    // so the identity check at the end of this method cannot protect them.
+    // Registries are configurable and their index is unsigned, so treat these
+    // as untrusted input: without this guard an entry id like
+    // `../../../../Users/me/AppData/...` turns install into an arbitrary
+    // rmSync + extract + rename.
+    if (!isSafePluginId(entry.id)) {
+      throw new Error(`catalog entry has an unsafe id: ${JSON.stringify(entry.id)}`);
+    }
+    if (!isSafePluginVersion(entry.version)) {
+      throw new Error(`catalog entry ${entry.id} has an unsafe version: ${JSON.stringify(entry.version)}`);
+    }
     onPhase?.('downloading');
     // Entries come back from `catalog()` with absolute URLs — already resolved
     // against whichever index (hosted or bundled) actually served them.
@@ -338,10 +352,14 @@ export class PluginMarketplace {
     // Handle zips that wrap everything in a single folder.
     if (!existsSync(extractDir)) return null;
     const entries = readdirSync(extractDir, { withFileTypes: true });
-    const dirs = entries.filter((e) => e.isDirectory());
-    if (dirs.length === 1 && existsSync(join(extractDir, dirs[0].name, 'manifest.json'))) {
-      return join(extractDir, dirs[0].name);
-    }
+    // Finder/`zip -r` on macOS adds `__MACOSX/` beside the wrapper folder;
+    // counting it as a second candidate made every such zip "contain no
+    // manifest.json" on every platform.
+    const dirs = entries.filter((e) => e.isDirectory() && e.name !== '__MACOSX');
+    const withManifest = dirs.filter((e) =>
+      existsSync(join(extractDir, e.name, 'manifest.json')),
+    );
+    if (withManifest.length === 1) return join(extractDir, withManifest[0].name);
     return null;
   }
 
@@ -368,14 +386,28 @@ export class PluginMarketplace {
       if (outgoing && incoming && outgoing !== incoming) {
         moveOldTo = this.registry.getPreviousDir(pluginId);
         mkdirSync(dirname(moveOldTo), { recursive: true });
-        rmSync(moveOldTo, { recursive: true, force: true });
+        retryFs(() => rmSync(moveOldTo, { recursive: true, force: true }));
       }
-      renameSync(target, moveOldTo);
+      retryFs(() => renameSync(target, moveOldTo));
     }
 
-    renameSync(stagedDir, target);
+    try {
+      retryFs(() => renameSync(stagedDir, target));
+    } catch (err) {
+      // The old copy is already aside; put it back rather than leaving the
+      // plugin uninstalled-looking on disk (Windows handles: Defender,
+      // Explorer, a backend that has not exited yet).
+      if (existsSync(moveOldTo) && !existsSync(target)) {
+        try {
+          retryFs(() => renameSync(moveOldTo, target));
+        } catch {
+          /* best effort — the caller re-scans and reports the failure */
+        }
+      }
+      throw err;
+    }
     if (moveOldTo === scrapped && existsSync(scrapped)) {
-      rmSync(scrapped, { recursive: true, force: true });
+      retryFs(() => rmSync(scrapped, { recursive: true, force: true }));
     }
     return target;
   }
@@ -408,9 +440,20 @@ export class PluginMarketplace {
     mkdirSync(stagingRoot, { recursive: true });
     const aside = join(stagingRoot, `${pluginId}-rolled-${Date.now()}`);
 
-    if (existsSync(target)) renameSync(target, aside);
-    renameSync(previous, target);
-    if (existsSync(aside)) renameSync(aside, previous);
+    if (existsSync(target)) retryFs(() => renameSync(target, aside));
+    try {
+      retryFs(() => renameSync(previous, target));
+    } catch (err) {
+      if (existsSync(aside) && !existsSync(target)) {
+        try {
+          retryFs(() => renameSync(aside, target));
+        } catch {
+          /* best effort */
+        }
+      }
+      throw err;
+    }
+    if (existsSync(aside)) retryFs(() => renameSync(aside, previous));
 
     return { from, to };
   }
