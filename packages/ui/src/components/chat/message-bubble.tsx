@@ -141,7 +141,7 @@ function MessageMetrics({ timing, contentLength, isStreaming }: { timing?: Messa
   if (!timing && isStreaming) return null;
 
   return (
-    <div className="flex items-center gap-2 mt-0.5 text-[10px] text-muted-foreground/50 tabular-nums">
+    <div className="flex items-center gap-2 mt-0.5 text-[0.625rem] text-muted-foreground/50 tabular-nums">
       {/* Estimated tokens */}
       <span className="flex items-center gap-0.5" title={t('预计输出 tokens（字符数 / 4）')}>
         <FileText className="h-2.5 w-2.5" />
@@ -177,7 +177,7 @@ function MessageMetrics({ timing, contentLength, isStreaming }: { timing?: Messa
             duration: formatDuration(timing.generationTimeMs),
           })}
         >
-          <span className="text-[8px] leading-none">▸</span>
+          <span className="text-[0.5rem] leading-none">▸</span>
           {formatDuration(timing.generationTimeMs)}
         </span>
       )}
@@ -365,7 +365,7 @@ function MessageBubbleImpl({
               conversation, not a hover affordance: the current bubble is one
               of N, and the arrows show the others. */}
           {message.branch && message.branch.count > 1 && (
-            <div className="flex items-center gap-0.5 text-[10px] text-muted-foreground/60 tabular-nums">
+            <div className="flex items-center gap-0.5 text-[0.625rem] text-muted-foreground/60 tabular-nums">
               <Button
                 variant="ghost"
                 size="icon-sm"
@@ -401,7 +401,7 @@ function MessageBubbleImpl({
               </Button>
             </div>
           )}
-          <span className="text-[10px] text-muted-foreground/50 tabular-nums">
+          <span className="text-[0.625rem] text-muted-foreground/50 tabular-nums">
             {new Date(message.createdAt).toLocaleTimeString()}
           </span>
           {showMessageMetrics && (
@@ -466,7 +466,7 @@ function MessageBubbleImpl({
                   </TooltipTrigger>
                   <TooltipContent side="bottom">
                     {t('从此回复创建分支')}
-                    <span className="mt-1 block text-[10px] opacity-70">
+                    <span className="mt-1 block text-[0.625rem] opacity-70">
                       {t('分支会复制到这条回复为止的对话，原对话保持不变。')}
                     </span>
                   </TooltipContent>

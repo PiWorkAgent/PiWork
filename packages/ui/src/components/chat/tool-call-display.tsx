@@ -267,7 +267,7 @@ export function ToolCallDisplay({
 
         {/* Tool name */}
         <span className={cn(
-          'font-medium font-mono text-[11px] shrink-0',
+          'font-medium font-mono text-[0.6875rem] shrink-0',
           hasError ? 'text-red-600 dark:text-red-400' : 'text-foreground',
         )}>
           {block.toolName}
@@ -275,7 +275,7 @@ export function ToolCallDisplay({
 
         {/* Args preview (always visible, like reference) */}
         {preview && (
-          <span className="text-muted-foreground/60 font-mono text-[11px] truncate flex-1 min-w-0">
+          <span className="text-muted-foreground/60 font-mono text-[0.6875rem] truncate flex-1 min-w-0">
             {preview}
           </span>
         )}
@@ -348,7 +348,7 @@ export function ToolCallDisplay({
           data-plugin-card-streaming={block.toolName}
           className="border-t border-border/40 bg-background/60 px-3 py-2"
         >
-          <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground/70">
+          <div className="mb-1.5 flex items-center gap-1.5 text-[0.625rem] font-medium uppercase tracking-wide text-muted-foreground/70">
             <Loader2 className="h-3 w-3 animate-spin" />
             {t('{tool} · 生成中', { tool: block.toolName })}
           </div>
@@ -375,7 +375,7 @@ export function ToolCallDisplay({
         <div className="border-t border-border/40">
           {/* Input args */}
           {block.args && Object.keys(block.args).length > 0 && (
-            <pre className="px-2.5 py-2 text-muted-foreground whitespace-pre-wrap font-mono text-[11px] leading-relaxed max-h-48 overflow-y-auto">
+            <pre className="px-2.5 py-2 text-muted-foreground whitespace-pre-wrap font-mono text-[0.6875rem] leading-relaxed max-h-48 overflow-y-auto">
               {JSON.stringify(block.args, null, 2)}
             </pre>
           )}
@@ -383,7 +383,7 @@ export function ToolCallDisplay({
           {/* Result — only shown when available and expanded (like reference) */}
           {result && (
             <pre className={cn(
-              'px-2.5 py-2 whitespace-pre-wrap font-mono text-[11px] leading-relaxed max-h-64 overflow-y-auto',
+              'px-2.5 py-2 whitespace-pre-wrap font-mono text-[0.6875rem] leading-relaxed max-h-64 overflow-y-auto',
               'border-t border-border/30',
               hasError
                 ? 'text-red-600 dark:text-red-400'

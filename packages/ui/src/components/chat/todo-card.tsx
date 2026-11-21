@@ -29,7 +29,7 @@ export function TodoCard({ snapshot }: { snapshot: TodoSnapshot | null }) {
 
   return (
     <div className="border-t border-border/40 bg-background/60 px-3 py-2" data-todo-card>
-      <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground/70">
+      <div className="mb-1.5 flex items-center gap-1.5 text-[0.625rem] font-medium uppercase tracking-wide text-muted-foreground/70">
         <ListTodo className="h-3 w-3" />
         {t('任务清单')}
         {todos.length > 0 && (
@@ -84,7 +84,7 @@ function TodoRow({ todo }: { todo: TodoItem }) {
       {todo.priority && todo.priority !== 'low' && (
         <span
           className={cn(
-            'mt-0.5 shrink-0 rounded border px-1 text-[9px] leading-4',
+            'mt-0.5 shrink-0 rounded border px-1 text-[0.5625rem] leading-4',
             PRIORITY_STYLE[todo.priority],
           )}
         >

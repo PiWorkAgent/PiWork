@@ -7,7 +7,9 @@ export * from './services/session.js';
 export * from './services/chat.js';
 export * from './services/file.js';
 export * from './services/config.js';
+export * from './services/auth.js';
 export * from './proxy/index.js';
+export * from './utils/model-selection.js';
 // Pure, dependency-free formatting shared by the agent tool (main) and the
 // Settings UI (renderer). No node builtins, so it is safe in both bundles.
 export * from './utils/agent-context.js';

@@ -98,11 +98,11 @@ export function BuiltinVoiceCard({
             <CardTitle className="truncate text-sm">
               {t(isStt ? '本地离线识别' : '内置朗读')}
             </CardTitle>
-            <Badge variant="secondary" className="shrink-0 text-[9px]">
+            <Badge variant="secondary" className="shrink-0 text-[0.5625rem]">
               {t('内置（推荐）')}
             </Badge>
             {active && (
-              <Badge variant="outline" className="shrink-0 text-[9px]">
+              <Badge variant="outline" className="shrink-0 text-[0.5625rem]">
                 {t('当前使用')}
               </Badge>
             )}
@@ -158,7 +158,7 @@ export function BuiltinVoiceCard({
                   <SelectItem key={entry.id} value={entry.id}>
                     <span className="flex items-center gap-2">
                       <span>{t(MODEL_LABELS[entry.id])}</span>
-                      <span className="text-[10px] text-muted-foreground">
+                      <span className="text-[0.625rem] text-muted-foreground">
                         {formatBytes(entry.sizeBytes)}
                       </span>
                     </span>
@@ -166,20 +166,20 @@ export function BuiltinVoiceCard({
                 ))}
               </SelectContent>
             </Select>
-            {model?.installed ? <Badge variant="outline" className="text-[9px]">{t('已安装')}</Badge> : null}
+            {model?.installed ? <Badge variant="outline" className="text-[0.5625rem]">{t('已安装')}</Badge> : null}
           </div>
         )}
 
         {enabled && usesModel && (
           <div className="rounded-md border bg-muted/20 px-2.5 py-2">
             {modelsLoading ? (
-              <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+              <span className="flex items-center gap-1.5 text-[0.6875rem] text-muted-foreground">
                 <Loader2 className="h-3 w-3 animate-spin" />
                 {t('加载中…')}
               </span>
             ) : downloading ? (
               <div className="space-y-1.5">
-                <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                <div className="flex items-center justify-between text-[0.6875rem] text-muted-foreground">
                   <span className="flex items-center gap-1.5">
                     <Loader2 className="h-3 w-3 animate-spin" />
                     {t('模型下载中 {percent}%', { percent })}
@@ -194,19 +194,19 @@ export function BuiltinVoiceCard({
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-6 px-1.5 text-[11px]"
+                  className="h-6 px-1.5 text-[0.6875rem]"
                   onClick={() => modelId && onCancel(modelId)}
                 >
                   {t('取消下载')}
                 </Button>
               </div>
             ) : model?.installed ? (
-              <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+              <div className="flex items-center justify-between gap-2 text-[0.6875rem] text-muted-foreground">
                 <span>{t('模型已就绪，可离线使用')}</span>
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-6 px-1.5 text-[11px] text-destructive hover:text-destructive"
+                  className="h-6 px-1.5 text-[0.6875rem] text-destructive hover:text-destructive"
                   onClick={() => modelId && onDelete(modelId)}
                 >
                   <Trash2 className="mr-1 h-3 w-3" />
@@ -215,7 +215,7 @@ export function BuiltinVoiceCard({
               </div>
             ) : (
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="min-w-0 text-[11px] text-muted-foreground">
+                <div className="min-w-0 text-[0.6875rem] text-muted-foreground">
                   {download?.phase === 'error' ? (
                     <span className="text-destructive">
                       {t('下载失败：{message}', { message: download.message ?? '' })}
@@ -259,13 +259,13 @@ export function BuiltinVoiceCard({
                 if (event.key === 'Enter') event.currentTarget.blur();
               }}
             />
-            <span className="text-[10px] text-muted-foreground">
+            <span className="text-[0.625rem] text-muted-foreground">
               {t('Kokoro 中文音色建议 48–52，英文可试 0；MeloTTS 仅 0')}
             </span>
           </div>
         )}
 
-        <p className="text-[10px] leading-relaxed text-muted-foreground/70">
+        <p className="text-[0.625rem] leading-relaxed text-muted-foreground/70">
           {t(
             isStt
               ? '模型下载后完全在本机识别，录音不会离开设备。'

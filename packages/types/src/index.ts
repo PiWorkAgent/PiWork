@@ -3,6 +3,7 @@ export * from './session.js';
 export * from './workspace.js';
 export * from './attachment.js';
 export * from './model.js';
+export * from './auth.js';
 export * from './config.js';
 export * from './voice.js';
 export * from './events.js';

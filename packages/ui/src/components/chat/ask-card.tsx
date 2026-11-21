@@ -85,9 +85,9 @@ export function AskCard({ request, inline = false }: { request: AskRequest; inli
         <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-foreground/[0.06] text-foreground/70">
           <MessageCircleQuestion className="h-3.5 w-3.5" />
         </span>
-        <span className="shrink-0 text-[11px] font-medium text-foreground/80">{t('提问')}</span>
+        <span className="shrink-0 text-[0.6875rem] font-medium text-foreground/80">{t('提问')}</span>
         {total > 1 && (
-          <span className="min-w-0 truncate text-[11px] text-muted-foreground/70">
+          <span className="min-w-0 truncate text-[0.6875rem] text-muted-foreground/70">
             {t('第 {current}/{total} 题', { current: index + 1, total })}
           </span>
         )}
@@ -185,7 +185,7 @@ export function AskCard({ request, inline = false }: { request: AskRequest; inli
 
         {/* Free-text fallback, always present. */}
         <div className="flex items-center gap-2 rounded-lg border border-dashed border-border px-3 py-2 transition-colors focus-within:border-foreground/25 focus-within:bg-muted/30">
-          <span className="shrink-0 text-[11px] text-muted-foreground/70">{t('其他')}</span>
+          <span className="shrink-0 text-[0.6875rem] text-muted-foreground/70">{t('其他')}</span>
           <input
             value={custom}
             disabled={submitting}
@@ -211,7 +211,7 @@ export function AskCard({ request, inline = false }: { request: AskRequest; inli
         <Button
           size="sm"
           variant="ghost"
-          className="h-7 px-2 text-[11px] text-muted-foreground"
+          className="h-7 px-2 text-[0.6875rem] text-muted-foreground"
           disabled={submitting}
           onClick={skip}
         >
@@ -220,7 +220,7 @@ export function AskCard({ request, inline = false }: { request: AskRequest; inli
         <Button
           size="sm"
           variant="ghost"
-          className="h-7 px-2 text-[11px] text-muted-foreground hover:text-destructive"
+          className="h-7 px-2 text-[0.6875rem] text-muted-foreground hover:text-destructive"
           disabled={submitting}
           onClick={refuseAll}
         >
@@ -228,7 +228,7 @@ export function AskCard({ request, inline = false }: { request: AskRequest; inli
         </Button>
         <Button
           size="sm"
-          className="ml-auto h-7 gap-1 px-3 text-[11px]"
+          className="ml-auto h-7 gap-1 px-3 text-[0.6875rem]"
           disabled={submitting}
           onClick={next}
         >

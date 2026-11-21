@@ -316,6 +316,23 @@ async function handleRequest(server: ViteDevServer, method: string, params: any)
       }
       break;
 
+    // Built-in provider sign-in. The web build has no event channel back into
+    // the page and no trusted surface for OAuth prompts, so it exposes only
+    // the read-only lists (the UI hides the built-in section via hasAuthApi
+    // anyway); every mutating action is a clear error rather than a hang.
+    case 'auth':
+      switch (action) {
+        case 'listProviders': return [];
+        case 'listCredentials': return [];
+        case 'login':
+        case 'respond':
+        case 'cancelPrompt':
+        case 'cancelLogin':
+        case 'logout':
+          throw new Error('内置服务商登录仅在桌面应用中可用');
+      }
+      break;
+
     case 'system':
       switch (action) {
         case 'selectDirectory': return openNativeFolderPicker();

@@ -131,7 +131,7 @@ export function FileBlockDisplay({ block }: FileBlockDisplayProps) {
         <div className="flex-1 min-w-0">
           <p className="text-xs font-medium truncate">{displayName}</p>
           {block.fileSize != null && (
-            <p className="text-[10px] text-muted-foreground">{formatFileSize(block.fileSize)}</p>
+            <p className="text-[0.625rem] text-muted-foreground">{formatFileSize(block.fileSize)}</p>
           )}
         </div>
         <div className="flex items-center gap-1 shrink-0">
@@ -181,7 +181,7 @@ export function FileBlockDisplay({ block }: FileBlockDisplayProps) {
       {/* Preview area */}
       {expanded && showPreview && (
         <div className="border-t">
-          <pre className="text-[11px] leading-relaxed p-3 max-h-48 overflow-auto bg-muted/20 font-mono whitespace-pre-wrap break-all">
+          <pre className="text-[0.6875rem] leading-relaxed p-3 max-h-48 overflow-auto bg-muted/20 font-mono whitespace-pre-wrap break-all">
             {previewText.slice(0, 5000)}
             {previewText.length > 5000 && (
               <span className="text-muted-foreground">

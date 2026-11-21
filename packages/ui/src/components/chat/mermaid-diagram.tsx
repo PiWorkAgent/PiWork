@@ -124,15 +124,15 @@ export function MermaidDiagram({ source, isStreaming }: MermaidDiagramProps) {
     return (
       <div className="group relative my-2">
         <div className="flex items-center justify-between px-3 py-1.5 bg-muted/60 border border-border rounded-t-md border-b-0">
-          <span className="flex items-center gap-2 text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+          <span className="flex items-center gap-2 text-[0.625rem] font-medium text-muted-foreground uppercase tracking-wider">
             mermaid
-            <span className="text-[10px] font-normal italic normal-case tracking-normal text-muted-foreground">
+            <span className="text-[0.625rem] font-normal italic normal-case tracking-normal text-muted-foreground">
               rendering...
             </span>
           </span>
           <button
             onClick={handleCopy}
-            className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors opacity-0 group-hover:opacity-100"
+            className="flex items-center gap-1 text-[0.625rem] text-muted-foreground hover:text-foreground transition-colors opacity-0 group-hover:opacity-100"
           >
             {copied ? (
               <>
@@ -159,16 +159,16 @@ export function MermaidDiagram({ source, isStreaming }: MermaidDiagramProps) {
     return (
       <div className="group relative my-2">
         <div className="flex items-center justify-between px-3 py-1.5 bg-muted/60 border border-border rounded-t-md border-b-0">
-          <span className="flex items-center gap-2 text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+          <span className="flex items-center gap-2 text-[0.625rem] font-medium text-muted-foreground uppercase tracking-wider">
             mermaid
-            <span className="flex items-center gap-1 text-[10px] font-normal italic normal-case tracking-normal text-red-500">
+            <span className="flex items-center gap-1 text-[0.625rem] font-normal italic normal-case tracking-normal text-red-500">
               <AlertTriangle className="h-3 w-3" />
               {t('渲染失败')}
             </span>
           </span>
           <button
             onClick={handleCopy}
-            className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors opacity-0 group-hover:opacity-100"
+            className="flex items-center gap-1 text-[0.625rem] text-muted-foreground hover:text-foreground transition-colors opacity-0 group-hover:opacity-100"
           >
             {copied ? (
               <>
@@ -183,7 +183,7 @@ export function MermaidDiagram({ source, isStreaming }: MermaidDiagramProps) {
             )}
           </button>
         </div>
-        <div className="px-3 py-1.5 bg-red-50 dark:bg-red-950/30 border-x border-border text-[11px] text-red-600 dark:text-red-400 font-mono whitespace-pre-wrap">
+        <div className="px-3 py-1.5 bg-red-50 dark:bg-red-950/30 border-x border-border text-[0.6875rem] text-red-600 dark:text-red-400 font-mono whitespace-pre-wrap">
           {error}
         </div>
         <pre className="!mt-0 !rounded-t-none overflow-auto max-h-96">
@@ -196,13 +196,13 @@ export function MermaidDiagram({ source, isStreaming }: MermaidDiagramProps) {
   return (
     <div className="group relative my-2">
       <div className="flex items-center justify-between px-3 py-1.5 bg-muted/60 border border-border rounded-t-md border-b-0">
-        <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+        <span className="text-[0.625rem] font-medium text-muted-foreground uppercase tracking-wider">
           mermaid
         </span>
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
           <button
             onClick={() => setZoomed(!zoomed)}
-            className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+            className="flex items-center gap-1 text-[0.625rem] text-muted-foreground hover:text-foreground transition-colors"
             aria-label={zoomed ? t('缩小') : t('放大')}
           >
             {zoomed ? (
@@ -213,7 +213,7 @@ export function MermaidDiagram({ source, isStreaming }: MermaidDiagramProps) {
           </button>
           <button
             onClick={handleCopy}
-            className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+            className="flex items-center gap-1 text-[0.625rem] text-muted-foreground hover:text-foreground transition-colors"
             aria-label={copied ? t('已复制') : t('复制源码')}
           >
             {copied ? (

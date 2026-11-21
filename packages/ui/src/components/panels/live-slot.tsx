@@ -333,7 +333,7 @@ export function LiveSlot({
       >
         <MonitorX className="h-6 w-6 text-muted-foreground/60" />
         <p className="text-sm text-muted-foreground">{translate('此面板需要原生视图支持')}</p>
-        <p className="text-[11px] text-muted-foreground/70 break-all max-w-full">{error}</p>
+        <p className="text-[0.6875rem] text-muted-foreground/70 break-all max-w-full">{error}</p>
       </div>
     );
   }

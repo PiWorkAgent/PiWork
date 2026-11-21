@@ -4,6 +4,7 @@ import type { SessionService } from './services/session.js';
 import type { ChatService } from './services/chat.js';
 import type { FileService } from './services/file.js';
 import type { ConfigService } from './services/config.js';
+import type { AuthService } from './services/auth.js';
 import type { TransportEventType, TransportEventHandler } from '@pi/types';
 
 export interface PiSDKClient {
@@ -13,6 +14,7 @@ export interface PiSDKClient {
   chat: ChatService;
   file: FileService;
   config: ConfigService;
+  auth: AuthService;
 
   connect(): Promise<void>;
   disconnect(): Promise<void>;
@@ -27,8 +29,9 @@ export function createSDKClient(params: {
   chat: ChatService;
   file: FileService;
   config: ConfigService;
+  auth: AuthService;
 }): PiSDKClient {
-  const { transport, workspace, session, chat, file, config } = params;
+  const { transport, workspace, session, chat, file, config, auth } = params;
 
   return {
     transport,
@@ -37,6 +40,7 @@ export function createSDKClient(params: {
     chat,
     file,
     config,
+    auth,
 
     async connect() {
       await transport.connect();

@@ -5,7 +5,12 @@ export type ThinkLevel = 'off' | 'low' | 'medium' | 'high';
 export interface ModelInfo {
   id: string;
   name: string;
+  /** Coarse family, kept for callers that only care about the API shape. */
   provider: ModelProvider;
+  /** Exact SDK provider id, e.g. `anthropic`, `openai-codex`, `DeepSeek-Flash`. */
+  providerId: string;
+  /** Provider display name for picker group headers. */
+  providerName: string;
   supportsThinking: boolean;
   thinkLevels: ThinkLevel[];
   maxTokens: number;

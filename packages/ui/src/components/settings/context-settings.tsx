@@ -236,7 +236,7 @@ export function ContextSettingsPage() {
       <section>
         <div className="flex items-baseline justify-between gap-4">
           <h3 className="text-sm font-medium">{t('全局上下文')}</h3>
-          <span className="truncate font-mono text-[10px] text-muted-foreground" title={info.agentDir}>
+          <span className="truncate font-mono text-[0.625rem] text-muted-foreground" title={info.agentDir}>
             {info.agentDir}
           </span>
         </div>
@@ -466,34 +466,34 @@ function FileCard({
     <div className="rounded-md border px-3 py-2.5">
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
         <span className="text-xs font-semibold">{title}</span>
-        <span className="text-[11px] text-muted-foreground">{subtitle}</span>
+        <span className="text-[0.6875rem] text-muted-foreground">{subtitle}</span>
         <Badge
           variant={file.exists && !inactive ? 'secondary' : 'outline'}
-          className="ml-auto text-[10px] font-normal"
+          className="ml-auto text-[0.625rem] font-normal"
         >
           {!file.exists ? t('未创建') : inactive ? t('被遮住') : t('生效中')}
         </Badge>
       </div>
 
-      <div className="mt-0.5 break-all font-mono text-[10px] text-muted-foreground">
+      <div className="mt-0.5 break-all font-mono text-[0.625rem] text-muted-foreground">
         {file.path}
       </div>
 
-      <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">{description}</p>
+      <p className="mt-1.5 text-[0.6875rem] leading-relaxed text-muted-foreground">{description}</p>
 
       {file.exists && (
-        <div className="mt-1 text-[11px] text-muted-foreground">
+        <div className="mt-1 text-[0.6875rem] text-muted-foreground">
           {t('{n} 字符', { n: file.chars.toLocaleString() })}
         </div>
       )}
 
       {overriddenNote && (
-        <div className="mt-1.5 rounded bg-amber-500/10 px-2 py-1 text-[11px] text-amber-700 dark:text-amber-400">
+        <div className="mt-1.5 rounded bg-amber-500/10 px-2 py-1 text-[0.6875rem] text-amber-700 dark:text-amber-400">
           {overriddenNote}
         </div>
       )}
       {shadowedNote && (
-        <div className="mt-1.5 rounded bg-amber-500/10 px-2 py-1 text-[11px] text-amber-700 dark:text-amber-400">
+        <div className="mt-1.5 rounded bg-amber-500/10 px-2 py-1 text-[0.6875rem] text-amber-700 dark:text-amber-400">
           {shadowedNote}
         </div>
       )}
@@ -504,26 +504,26 @@ function FileCard({
             value={editor.content}
             spellCheck={false}
             onChange={(e) => onContentChange(e.target.value)}
-            className="min-h-[180px] font-mono text-[11px] leading-relaxed"
+            className="min-h-[180px] font-mono text-[0.6875rem] leading-relaxed"
           />
           {editorError && (
-            <div className="whitespace-pre-wrap rounded-md border border-destructive/40 px-2 py-1.5 text-[11px] text-destructive">
+            <div className="whitespace-pre-wrap rounded-md border border-destructive/40 px-2 py-1.5 text-[0.6875rem] text-destructive">
               {editorError}
             </div>
           )}
           <div className="flex flex-wrap items-center gap-1.5">
-            <Button size="sm" className="h-7 text-[11px]" disabled={saving} onClick={onSave}>
+            <Button size="sm" className="h-7 text-[0.6875rem]" disabled={saving} onClick={onSave}>
               {saving ? t('保存中…') : editor.isNew ? t('创建并生效') : t('保存')}
             </Button>
             <Button
               variant="outline"
               size="sm"
-              className="h-7 text-[11px]"
+              className="h-7 text-[0.6875rem]"
               onClick={onCancel}
             >
               {t('取消')}
             </Button>
-            <span className="text-[11px] text-muted-foreground">
+            <span className="text-[0.6875rem] text-muted-foreground">
               {editor.isNew
                 ? t('保存之前不会写入任何文件，取消就等于什么都没做。')
                 : t('保存后立即生效；正在生成回复时则于下一个新会话生效。')}
@@ -534,13 +534,13 @@ function FileCard({
         <div className="mt-2 flex flex-wrap items-center gap-1.5">
           {file.exists ? (
             <>
-              <Button variant="outline" size="sm" className="h-7 text-[11px]" onClick={onEdit}>
+              <Button variant="outline" size="sm" className="h-7 text-[0.6875rem]" onClick={onEdit}>
                 {t('编辑')}
               </Button>
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-7 text-[11px] text-destructive hover:text-destructive"
+                className="h-7 text-[0.6875rem] text-destructive hover:text-destructive"
                 onClick={onDelete}
               >
                 {t('删除')}
@@ -552,7 +552,7 @@ function FileCard({
                 <Button
                   variant="outline"
                   size="sm"
-                  className="h-7 text-[11px]"
+                  className="h-7 text-[0.6875rem]"
                   onClick={onSeed}
                   disabled={!canSeed}
                   title={!canSeed ? seedHint : undefined}
@@ -563,17 +563,17 @@ function FileCard({
                 <Button
                   variant="outline"
                   size="sm"
-                  className="h-7 text-[11px]"
+                  className="h-7 text-[0.6875rem]"
                   onClick={onEdit}
                 >
                   {createLabel ?? t('创建')}
                 </Button>
               )}
               {createHint && (
-                <span className="text-[11px] text-muted-foreground">{createHint}</span>
+                <span className="text-[0.6875rem] text-muted-foreground">{createHint}</span>
               )}
               {seedOnly && !canSeed && (
-                <span className="text-[11px] text-muted-foreground">
+                <span className="text-[0.6875rem] text-muted-foreground">
                   {seedHint ?? t('需要一次对话后才能读取完整提示词')}
                 </span>
               )}
@@ -648,13 +648,13 @@ function WorkspaceAgents({
               key={file.path}
               className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 rounded-md border px-2.5 py-1.5"
             >
-              <Badge variant="outline" className="text-[10px] font-normal">
+              <Badge variant="outline" className="text-[0.625rem] font-normal">
                 {scopeText(file.scope)}
               </Badge>
-              <span className="min-w-0 flex-1 break-all font-mono text-[10px] text-muted-foreground">
+              <span className="min-w-0 flex-1 break-all font-mono text-[0.625rem] text-muted-foreground">
                 {file.path}
               </span>
-              <span className="text-[10px] text-muted-foreground">
+              <span className="text-[0.625rem] text-muted-foreground">
                 {t('{n} 字符', { n: file.chars.toLocaleString() })}
               </span>
             </li>

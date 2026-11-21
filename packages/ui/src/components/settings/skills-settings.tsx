@@ -199,8 +199,8 @@ export function SkillsSettingsPage() {
 
         <div className="mt-3 space-y-3">
           <div className="rounded-md border bg-muted/20 px-3 py-2.5">
-            <div className="text-[11px] font-medium text-muted-foreground">{t('内置位置')}</div>
-            <ul className="mt-1 space-y-0.5 font-mono text-[11px] text-muted-foreground">
+            <div className="text-[0.6875rem] font-medium text-muted-foreground">{t('内置位置')}</div>
+            <ul className="mt-1 space-y-0.5 font-mono text-[0.6875rem] text-muted-foreground">
               <li>~/.agents/skills</li>
               <li>~/.pi/agent/skills</li>
               <li>&lt;{t('工作区')}&gt;/.pi/skills</li>
@@ -229,7 +229,7 @@ export function SkillsSettingsPage() {
             <ul className="divide-y rounded-md border">
               {extraPaths.map((path) => (
                 <li key={path} className="flex items-center gap-2 px-3 py-2">
-                  <code className="min-w-0 flex-1 break-all text-[11px]">{path}</code>
+                  <code className="min-w-0 flex-1 break-all text-[0.6875rem]">{path}</code>
                   <button
                     type="button"
                     aria-label={t('{path} 移除', { path })}

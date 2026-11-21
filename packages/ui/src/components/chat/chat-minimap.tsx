@@ -862,7 +862,7 @@ export function ChatMinimap({ items, virtuosoRef, scroller, active, sessionId }:
           )}
         >
           {cardRole && (
-            <div className="text-[10px] font-medium text-muted-foreground">{cardRole}</div>
+            <div className="text-[0.625rem] font-medium text-muted-foreground">{cardRole}</div>
           )}
           <div className={cn('line-clamp-2 text-xs leading-snug', cardRole && 'mt-0.5')}>
             {card.label || cardRole || '—'}

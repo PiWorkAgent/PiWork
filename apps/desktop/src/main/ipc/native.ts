@@ -128,16 +128,23 @@ export function registerNativeIpcHandlers(windows: WindowRegistry): void {
 
   // Keep the Windows titleBarOverlay in step with the app theme. Throws (and is
   // swallowed) on macOS/Linux, which have no overlay to update.
+  //
+  // `height` is the measured header band, which scales with the 字号 setting.
+  // It comes from the renderer because that is where the band's CSS lives;
+  // clamp it so a stale or bogus number cannot corrupt the window chrome.
   ipcMain.handle(
     'pi:window:setTitleBarOverlay',
-    (event, options: { color: string; symbolColor: string }) => {
+    (event, options: { color: string; symbolColor: string; height?: number }) => {
       const win = senderWindow(windows, event);
       if (!win) return;
       try {
         win.setTitleBarOverlay({
           color: options.color,
           symbolColor: options.symbolColor,
-          height: TITLE_BAR_HEIGHT,
+          height:
+            options.height && Number.isFinite(options.height)
+              ? Math.min(120, Math.max(24, Math.round(options.height)))
+              : TITLE_BAR_HEIGHT,
         });
       } catch {
         // Not supported on this platform.

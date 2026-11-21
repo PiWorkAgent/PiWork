@@ -68,7 +68,7 @@ export function PluginMessageBubble({ message }: { message: PluginMessage }) {
   return (
     <div className="flex w-full px-4 py-2">
       <div className="flex w-full max-w-[85%] flex-col gap-2 rounded-xl border bg-muted/20 p-3">
-        <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+        <div className="flex items-center gap-1.5 text-[0.6875rem] text-muted-foreground">
           {plugin?.iconUrl ? (
             <img src={plugin.iconUrl} alt="" className="h-3.5 w-3.5 rounded-sm" />
           ) : (
@@ -84,7 +84,7 @@ export function PluginMessageBubble({ message }: { message: PluginMessage }) {
           {message.triggered ? (
             <Badge
               variant="secondary"
-              className="px-1 py-0 text-[9px] font-normal"
+              className="px-1 py-0 text-[0.5625rem] font-normal"
               title="这条插件消息启动了一次 AI 运行"
             >
               已交给 AI
@@ -92,7 +92,7 @@ export function PluginMessageBubble({ message }: { message: PluginMessage }) {
           ) : message.agentVisible ? (
             <Badge
               variant="secondary"
-              className="px-1 py-0 text-[9px] font-normal"
+              className="px-1 py-0 text-[0.5625rem] font-normal"
               title="这条消息也进入了 AI 上下文"
             >
               AI 可见
@@ -112,13 +112,13 @@ export function PluginMessageBubble({ message }: { message: PluginMessage }) {
         ) : null}
 
         {message.quote ? (
-          <blockquote className="max-h-44 overflow-y-auto whitespace-pre-wrap border-l-2 border-border pl-3 text-[13px] leading-relaxed text-muted-foreground">
+          <blockquote className="max-h-44 overflow-y-auto whitespace-pre-wrap border-l-2 border-border pl-3 text-[0.8125rem] leading-relaxed text-muted-foreground">
             {message.quote}
           </blockquote>
         ) : null}
 
         {sourceText ? (
-          <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+          <div className="flex items-center gap-1.5 text-[0.6875rem] text-muted-foreground">
             <Globe className="h-3 w-3 shrink-0" />
             <span className="truncate" title={source?.url ?? sourceText}>
               {sourceText}

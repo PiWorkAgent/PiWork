@@ -375,7 +375,7 @@ export function VoiceSettingsPage() {
             </div>
           ))}
 
-          <p className="mt-6 text-[11px] leading-relaxed text-muted-foreground/70">
+          <p className="mt-6 text-[0.6875rem] leading-relaxed text-muted-foreground/70">
             {t('密钥以明文保存在本机 voice.json，与 models.json 一致。')}
           </p>
         </div>
@@ -707,7 +707,7 @@ function VoiceSection({
               {testBusy ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <FileAudio className="mr-1 h-3 w-3" />}
               {t('测试识别')}
             </Button>
-            <span className="text-[11px] text-muted-foreground">{t('选择音频文件')}</span>
+            <span className="text-[0.6875rem] text-muted-foreground">{t('选择音频文件')}</span>
           </>
         ) : (
           <>
@@ -737,7 +737,7 @@ function VoiceSection({
 
       {testResult && (
         <div className="mt-2 rounded-md border bg-muted/30 px-3 py-2">
-          <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+          <div className="text-[0.625rem] font-medium uppercase tracking-wide text-muted-foreground">
             {t('识别结果')}
           </div>
           <p className="mt-1 whitespace-pre-wrap text-xs">{testResult}</p>
@@ -778,7 +778,7 @@ function ProviderCard({
         <div className="flex items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-1.5">
             <CardTitle className="truncate text-sm">{name}</CardTitle>
-            {active && <Badge variant="secondary" className="text-[9px]">{t('当前服务商')}</Badge>}
+            {active && <Badge variant="secondary" className="text-[0.5625rem]">{t('当前服务商')}</Badge>}
           </div>
           <div className="flex shrink-0 items-center gap-0.5">
             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onEdit} aria-label={t('编辑')}>
@@ -795,9 +795,9 @@ function ProviderCard({
             </Button>
           </div>
         </div>
-        <div className="min-w-0 space-y-0.5 text-[11px] text-muted-foreground">
+        <div className="min-w-0 space-y-0.5 text-[0.6875rem] text-muted-foreground">
           <div className="flex items-center gap-1.5">
-            <Badge variant="secondary" className="text-[10px]">
+            <Badge variant="secondary" className="text-[0.625rem]">
               {t(PROVIDER_LABELS[provider.type])}
             </Badge>
           </div>
@@ -809,7 +809,7 @@ function ProviderCard({
           {provider.apiKey && (
             <div className="flex items-center gap-1">
               <span className="shrink-0">{t('API Key')}:</span>
-              <code className="break-all rounded bg-muted px-1 text-[10px]">
+              <code className="break-all rounded bg-muted px-1 text-[0.625rem]">
                 {keyVisible ? provider.apiKey : maskKey(provider.apiKey)}
               </code>
               <Button variant="ghost" size="icon" className="h-5 w-5 shrink-0" onClick={onToggleKey}>
@@ -1119,7 +1119,7 @@ function CustomHttpFields({
         <Label htmlFor="voiceHeaders">{t('请求头（JSON）')}</Label>
         <textarea
           id="voiceHeaders"
-          className="mt-1 min-h-[56px] w-full rounded-md border bg-background px-2 py-1.5 font-mono text-[11px] outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
+          className="mt-1 min-h-[56px] w-full rounded-md border bg-background px-2 py-1.5 font-mono text-[0.6875rem] outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
           placeholder='{"X-Api-Key": "..."}'
           defaultValue={option('headers')}
           onBlur={(event) => setOption('headers', event.target.value)}
@@ -1155,7 +1155,7 @@ function CustomHttpFields({
         <Label htmlFor="voiceBodyTemplate">{t('请求体模板')}</Label>
         <textarea
           id="voiceBodyTemplate"
-          className="mt-1 min-h-[86px] w-full rounded-md border bg-background px-2 py-1.5 font-mono text-[11px] outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
+          className="mt-1 min-h-[86px] w-full rounded-md border bg-background px-2 py-1.5 font-mono text-[0.6875rem] outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
           placeholder={
             isStt
               ? '{"audio":"{{audio_base64}}","mimeType":"{{mime}}","language":"{{language}}","model":"{{model}}"}'

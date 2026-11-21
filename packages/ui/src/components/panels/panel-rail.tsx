@@ -110,7 +110,7 @@ function RailButton({ panel, region }: { panel: PanelEntry; region: PanelRegion 
             <span
               data-panel-badge
               className={cn(
-                'absolute -top-0.5 min-w-[16px] rounded-full bg-primary px-1 text-[10px] font-medium leading-4 text-primary-foreground',
+                'absolute -top-0.5 min-w-[1rem] rounded-full bg-primary px-1 text-[0.625rem] font-medium leading-4 text-primary-foreground',
                 isLeft ? '-left-0.5' : '-right-0.5',
               )}
             >

@@ -79,10 +79,10 @@ export function PermissionModeButton() {
             >
               {t(MODE_LABELS[key].title)}
               {mode === key && (
-                <span className="ml-1.5 text-[10px] opacity-60">{t('当前')}</span>
+                <span className="ml-1.5 text-[0.625rem] opacity-60">{t('当前')}</span>
               )}
             </span>
-            <span className="text-[10px] text-muted-foreground font-normal">
+            <span className="text-[0.625rem] text-muted-foreground font-normal">
               {t(MODE_LABELS[key].hint)}
             </span>
           </DropdownMenuItem>

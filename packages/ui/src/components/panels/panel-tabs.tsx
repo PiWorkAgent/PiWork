@@ -607,7 +607,7 @@ function TabPill({
       onDrop={onDrop}
       onDragEnd={onDragEnd}
       className={cn(
-        'group/tab relative flex h-8 max-w-[176px] shrink-0 items-center gap-2 rounded-lg px-2.5 text-[13px] transition-colors focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring',
+        'group/tab relative flex h-8 max-w-[11rem] shrink-0 items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] transition-colors focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring',
         active
           ? 'bg-accent text-accent-foreground'
           : 'text-muted-foreground hover:bg-accent/40 hover:text-foreground/80',
@@ -619,7 +619,7 @@ function TabPill({
       <RailIcon panel={panel} size={16} className="h-4 w-4 shrink-0" />
       <span className="min-w-0 truncate">{title}</span>
       {badge !== undefined && badge !== null && badge !== '' && (
-        <span className="min-w-[16px] shrink-0 rounded-full bg-primary px-1 text-center text-[10px] font-medium leading-4 text-primary-foreground">
+        <span className="min-w-[1rem] shrink-0 rounded-full bg-primary px-1 text-center text-[0.625rem] font-medium leading-4 text-primary-foreground">
           {badge}
         </span>
       )}
@@ -742,7 +742,7 @@ function PluginPickerList({
                 onMouseEnter={() => setActiveIndex(index)}
                 onClick={() => onPick(panel.id)}
                 className={cn(
-                  'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px]',
+                  'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[0.8125rem]',
                   index === activeIndex
                     ? 'bg-accent text-accent-foreground'
                     : 'text-foreground hover:bg-accent/60',

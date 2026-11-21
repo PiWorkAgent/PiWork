@@ -28,11 +28,11 @@ export function PermissionRequestCard({ request }: { request: PermissionRequest 
       <div className="flex items-start gap-2">
         <ShieldAlert className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
         <div className="min-w-0 flex-1">
-          <div className="text-[11px] font-medium text-amber-700 dark:text-amber-300">
+          <div className="text-[0.6875rem] font-medium text-amber-700 dark:text-amber-300">
             {t('高危操作，等待批准')}
           </div>
           {request.summary && (
-            <pre className="mt-1 whitespace-pre-wrap break-all font-mono text-[11px] leading-relaxed text-foreground/80">
+            <pre className="mt-1 whitespace-pre-wrap break-all font-mono text-[0.6875rem] leading-relaxed text-foreground/80">
               {request.summary}
             </pre>
           )}
@@ -40,14 +40,14 @@ export function PermissionRequestCard({ request }: { request: PermissionRequest 
             <Button
               size="sm"
               variant="outline"
-              className="h-6 px-2 text-[11px] border-destructive/40 text-destructive hover:bg-destructive/10"
+              className="h-6 px-2 text-[0.6875rem] border-destructive/40 text-destructive hover:bg-destructive/10"
               onClick={() => resolve(request, 'deny')}
             >
               {t('拒绝')}
             </Button>
             <Button
               size="sm"
-              className="h-6 px-2 text-[11px]"
+              className="h-6 px-2 text-[0.6875rem]"
               onClick={() => resolve(request, 'once')}
             >
               {t('允许一次')}
@@ -55,14 +55,14 @@ export function PermissionRequestCard({ request }: { request: PermissionRequest 
             <Button
               size="sm"
               variant="outline"
-              className="h-6 px-2 text-[11px]"
+              className="h-6 px-2 text-[0.6875rem]"
               title={alwaysScope()}
               onClick={() => resolve(request, 'always')}
             >
               {t('总是允许')}
             </Button>
           </div>
-          <div className="mt-1.5 text-[10px] text-muted-foreground/70">
+          <div className="mt-1.5 text-[0.625rem] text-muted-foreground/70">
             {t('总是允许：{scope}', { scope: alwaysScope() })}
           </div>
         </div>

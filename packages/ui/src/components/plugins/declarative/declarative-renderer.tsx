@@ -104,12 +104,12 @@ function NodeView({ node, onEvent }: { node: UiNode; onEvent: RendererProps['onE
       return (
         <span
           className={cn(
-            'min-w-0 text-[13px] leading-snug text-foreground',
-            variant === 'muted' && 'text-[12px] text-muted-foreground',
-            variant === 'small' && 'text-[11px] text-muted-foreground/80',
-            variant === 'title' && 'text-[13px] font-semibold leading-snug text-foreground',
+            'min-w-0 text-[0.8125rem] leading-snug text-foreground',
+            variant === 'muted' && 'text-[0.75rem] text-muted-foreground',
+            variant === 'small' && 'text-[0.6875rem] text-muted-foreground/80',
+            variant === 'title' && 'text-[0.8125rem] font-semibold leading-snug text-foreground',
             props.weight === 'bold' && 'font-semibold',
-            props.mono === true && 'font-mono text-[12px]',
+            props.mono === true && 'font-mono text-[0.75rem]',
             props.truncate === true && 'truncate',
           )}
         >
@@ -150,7 +150,7 @@ function NodeView({ node, onEvent }: { node: UiNode; onEvent: RendererProps['onE
         <Input
           placeholder={props.placeholder ? String(props.placeholder) : undefined}
           defaultValue={props.value !== undefined ? String(props.value) : undefined}
-          className="h-8 text-[13px]"
+          className="h-8 text-[0.8125rem]"
           data-ui-event={eventId}
           onKeyDown={(e) => {
             if (eventId && e.key === 'Enter') {
@@ -173,7 +173,7 @@ function NodeView({ node, onEvent }: { node: UiNode; onEvent: RendererProps['onE
                   <Icon className="h-3.5 w-3.5" />
                 </span>
               ) : null}
-              <span className="min-w-0 flex-1 truncate text-[13px] font-semibold leading-5 text-foreground">
+              <span className="min-w-0 flex-1 truncate text-[0.8125rem] font-semibold leading-5 text-foreground">
                 {String(props.title)}
               </span>
               {status ? (
@@ -193,7 +193,7 @@ function NodeView({ node, onEvent }: { node: UiNode; onEvent: RendererProps['onE
 
     case 'Badge':
       return (
-        <span className="inline-flex shrink-0 items-center rounded-md border border-border/60 bg-muted/40 px-1.5 py-px text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+        <span className="inline-flex shrink-0 items-center rounded-md border border-border/60 bg-muted/40 px-1.5 py-px text-[0.625rem] font-medium uppercase tracking-wider text-muted-foreground">
           {String(props.text ?? '')}
         </span>
       );
@@ -208,15 +208,15 @@ function NodeView({ node, onEvent }: { node: UiNode; onEvent: RendererProps['onE
               type="button"
               data-ui-event={events?.onClick}
               className={cn(
-                'flex w-full items-center gap-2 rounded-md border border-border/50 bg-card px-2.5 py-1.5 text-left text-[13px] transition-colors',
+                'flex w-full items-center gap-2 rounded-md border border-border/50 bg-card px-2.5 py-1.5 text-left text-[0.8125rem] transition-colors',
                 events?.onClick && 'hover:bg-muted/40',
               )}
               onClick={() => events?.onClick && onEvent('click', { eventId: events.onClick, node }, { key: item.key, label: item.label })}
             >
               <span className="shrink-0 font-medium">{item.label}</span>
-              {item.description ? <span className="flex-1 truncate text-[12px] text-muted-foreground">{item.description}</span> : null}
+              {item.description ? <span className="flex-1 truncate text-[0.75rem] text-muted-foreground">{item.description}</span> : null}
               {item.badge !== undefined ? (
-                <span className="shrink-0 rounded-md bg-muted/60 px-1.5 py-px text-[10px] font-medium tabular-nums text-muted-foreground">
+                <span className="shrink-0 rounded-md bg-muted/60 px-1.5 py-px text-[0.625rem] font-medium tabular-nums text-muted-foreground">
                   {item.badge}
                 </span>
               ) : null}
@@ -255,8 +255,8 @@ function NodeView({ node, onEvent }: { node: UiNode; onEvent: RendererProps['onE
             const key = tuple ? raw[0] : raw?.key;
             const value = tuple ? raw[1] : raw?.value;
             return (
-              <div key={i} className="flex min-w-0 items-start gap-3 text-[13px]">
-                <span className="w-16 shrink-0 text-[12px] leading-5 text-muted-foreground/80">
+              <div key={i} className="flex min-w-0 items-start gap-3 text-[0.8125rem]">
+                <span className="w-16 shrink-0 text-[0.75rem] leading-5 text-muted-foreground/80">
                   {String(key ?? '')}
                 </span>
                 <span className="min-w-0 flex-1 break-words leading-5 text-foreground">
@@ -271,7 +271,7 @@ function NodeView({ node, onEvent }: { node: UiNode; onEvent: RendererProps['onE
 
     case 'Spinner':
       return (
-        <div className="flex items-center gap-2 text-[12px] text-muted-foreground">
+        <div className="flex items-center gap-2 text-[0.75rem] text-muted-foreground">
           <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
           {props.label ? String(props.label) : null}
         </div>
@@ -280,8 +280,8 @@ function NodeView({ node, onEvent }: { node: UiNode; onEvent: RendererProps['onE
     case 'EmptyState':
       return (
         <div className="flex flex-col items-center justify-center gap-1 py-8 text-center">
-          <span className="text-[13px] font-medium">{String(props.title ?? t('暂无内容'))}</span>
-          {props.description ? <span className="text-[11px] text-muted-foreground">{String(props.description)}</span> : null}
+          <span className="text-[0.8125rem] font-medium">{String(props.title ?? t('暂无内容'))}</span>
+          {props.description ? <span className="text-[0.6875rem] text-muted-foreground">{String(props.description)}</span> : null}
         </div>
       );
 

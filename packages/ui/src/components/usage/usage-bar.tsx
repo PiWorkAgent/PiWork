@@ -81,7 +81,7 @@ export function UsageBar() {
 
   if (!hasData) {
     return (
-      <div className="flex items-center px-4 py-1 border-t text-[11px] text-muted-foreground/40 shrink-0">
+      <div className="flex items-center px-4 py-1 border-t text-[0.6875rem] text-muted-foreground/40 shrink-0">
         No usage data yet
       </div>
     );
@@ -91,7 +91,7 @@ export function UsageBar() {
     // A size container like the composer's tools row: the stats must not
     // wrap into two lines when a preview panel narrows the chat column. The
     // least important numbers step aside instead.
-    <div className="@container flex min-w-0 items-center gap-3 overflow-hidden px-4 py-1 border-t text-[11px] text-muted-foreground/80 shrink-0 @max-[420px]:gap-2">
+    <div className="@container flex min-w-0 items-center gap-3 overflow-hidden px-4 py-1 border-t text-[0.6875rem] text-muted-foreground/80 shrink-0 @max-[420px]:gap-2">
       {/* Input tokens */}
       <span
         className="flex shrink-0 items-center gap-0.5 whitespace-nowrap"
@@ -155,7 +155,7 @@ export function UsageBar() {
               style={{ width: `${Math.min(ctx.percent, 100)}%` }}
             />
           </div>
-          <span className="text-[10px]">{ctx.percent.toFixed(0)}%</span>
+          <span className="text-[0.625rem]">{ctx.percent.toFixed(0)}%</span>
         </span>
       )}
     </div>

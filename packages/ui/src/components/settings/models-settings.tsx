@@ -1,17 +1,19 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, Pencil, Trash2, Eye, EyeOff, AlertCircle, Loader2, EyeIcon, FileText, RefreshCw } from 'lucide-react';
+import type { ProviderAuthRow } from '@pi/types';
+import { AlertCircle, EyeIcon, FileText, Loader2, RefreshCw } from 'lucide-react';
 import { useSDK } from '@/hooks/use-sdk';
 import { useI18n } from '@/i18n';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { ErrorState } from '@/components/common/error-state';
 import { cn } from '@/lib/utils';
+import { useAuthProvidersQuery, hasAuthApi, AUTH_PROVIDERS_QUERY_KEY } from '@/lib/auth-client';
+import { toast } from '@/stores/toast-store';
 import {
   Select,
   SelectContent,
@@ -43,6 +45,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { BuiltinProvidersSection } from './models/builtin-providers-section';
+import { CustomProvidersSection } from './models/custom-providers-section';
+import { ProviderLoginDialog } from './models/provider-login-dialog';
 
 const DEFAULT_PROVIDER: ProviderEntry = {
   baseUrl: 'https://api.example.com/v1',
@@ -85,10 +90,17 @@ function getModelInputType(model: ModelEntry): 'text' | 'multimodal' {
 }
 
 /**
- * 模型 — model providers and their models (`~/.pi/agent/models.json`).
+ * 模型 — providers and the models they make available.
  *
- * Rendered as a page inside the settings dialog, so it owns its own toolbar
- * and scrolling but no outer page title (the dialog supplies that).
+ * Two halves, deliberately separated by a rule:
+ *
+ *  1. 内置服务商: everything the Pi SDK ships. Sign-in is subscription OAuth or
+ *     API key; the credential goes to `~/.pi/agent/auth.json`, managed by the
+ *     SDK. Nothing here edits a file.
+ *  2. 自定义服务商: `~/.pi/agent/models.json` — endpoints Pi does not ship.
+ *
+ * The models both halves make usable all flow into one picker (see
+ * `config.listModels()`).
  */
 export function ModelsSettingsPage() {
   const sdk = useSDK();
@@ -97,7 +109,9 @@ export function ModelsSettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [visibleKeys, setVisibleKeys] = useState<Set<string>>(new Set());
 
-  // Delete confirmation
+  // Login / logout for a built-in provider, and models.json delete confirms.
+  const [loginProvider, setLoginProvider] = useState<ProviderAuthRow | null>(null);
+  const [logoutProvider, setLogoutProvider] = useState<ProviderAuthRow | null>(null);
   const [deleteProvider, setDeleteProvider] = useState<string | null>(null);
   const [deleteModel, setDeleteModel] = useState<{ provider: string; modelId: string } | null>(null);
 
@@ -139,6 +153,14 @@ export function ModelsSettingsPage() {
     queryKey: ['modelsConfig'],
     queryFn: () => sdk.config.getModelsConfig(),
   });
+
+  // Built-in ids feed the "覆盖内置服务商" badge on custom entries. The list is
+  // shared with the section above, so it costs nothing extra.
+  const { data: authRows } = useAuthProvidersQuery();
+  const builtinIds = useMemo(
+    () => new Set((authRows ?? []).filter((row) => !row.custom).map((row) => row.id)),
+    [authRows],
+  );
 
   const providers = config?.providers ?? {};
   const apiIsKnown = API_TYPES.some((opt) => opt.value === providerDialog.data.api);
@@ -186,6 +208,14 @@ export function ModelsSettingsPage() {
     });
   }, []);
 
+  /** Everything that reads the provider/model set after a write. */
+  const invalidateAll = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['modelsConfig'] });
+    queryClient.invalidateQueries({ queryKey: ['models'] });
+    queryClient.invalidateQueries({ queryKey: ['config'] });
+    queryClient.invalidateQueries({ queryKey: AUTH_PROVIDERS_QUERY_KEY });
+  }, [queryClient]);
+
   // --- Provider operations ---
 
   const handleAddProvider = useCallback(() => {
@@ -199,18 +229,21 @@ export function ModelsSettingsPage() {
     });
   }, []);
 
-  const handleEditProvider = useCallback((name: string) => {
-    const p = providers[name];
-    if (!p) return;
-    setError(null);
-    setProviderDialog({
-      open: true,
-      editMode: true,
-      originalName: name,
-      name,
-      data: { ...p, models: [...p.models], compat: { ...p.compat } },
-    });
-  }, [providers]);
+  const handleEditProvider = useCallback(
+    (name: string) => {
+      const p = providers[name];
+      if (!p) return;
+      setError(null);
+      setProviderDialog({
+        open: true,
+        editMode: true,
+        originalName: name,
+        name,
+        data: { ...p, models: [...p.models], compat: { ...p.compat } },
+      });
+    },
+    [providers],
+  );
 
   const handleSaveProvider = useCallback(async () => {
     try {
@@ -230,52 +263,54 @@ export function ModelsSettingsPage() {
       }
       await sdk.config.saveProvider(editMode ? originalName : null, nextName, data);
       setProviderDialog({ open: false, editMode: false, originalName: '', name: '', data: { ...DEFAULT_PROVIDER } });
-      queryClient.invalidateQueries({ queryKey: ['modelsConfig'] });
-      queryClient.invalidateQueries({ queryKey: ['models'] });
-      queryClient.invalidateQueries({ queryKey: ['config'] });
+      invalidateAll();
     } catch (e) {
       setError(e instanceof Error ? e.message : t('保存失败'));
     }
-  }, [providerDialog, providers, sdk, queryClient, t]);
+  }, [providerDialog, providers, sdk, invalidateAll, t]);
 
   const handleConfirmDeleteProvider = useCallback(async () => {
     if (!deleteProvider) return;
     try {
       await sdk.config.deleteProvider(deleteProvider);
       setDeleteProvider(null);
-      queryClient.invalidateQueries({ queryKey: ['modelsConfig'] });
-      queryClient.invalidateQueries({ queryKey: ['models'] });
-      queryClient.invalidateQueries({ queryKey: ['config'] });
+      invalidateAll();
     } catch (e) {
       setError(e instanceof Error ? e.message : t('删除失败'));
     }
-  }, [deleteProvider, sdk, queryClient, t]);
+  }, [deleteProvider, sdk, invalidateAll, t]);
 
   // --- Model operations ---
 
-  const handleAddModel = useCallback((providerName: string) => {
-    setError(null);
-    setModelDialog({
-      open: true,
-      providerName,
-      editMode: false,
-      originalId: '',
-      data: { ...DEFAULT_MODEL },
-    });
-    void loadRemoteModels(providerName);
-  }, [loadRemoteModels]);
+  const handleAddModel = useCallback(
+    (providerName: string) => {
+      setError(null);
+      setModelDialog({
+        open: true,
+        providerName,
+        editMode: false,
+        originalId: '',
+        data: { ...DEFAULT_MODEL },
+      });
+      void loadRemoteModels(providerName);
+    },
+    [loadRemoteModels],
+  );
 
-  const handleEditModel = useCallback((providerName: string, model: ModelEntry) => {
-    setError(null);
-    setModelDialog({
-      open: true,
-      providerName,
-      editMode: true,
-      originalId: model.id,
-      data: { ...model },
-    });
-    void loadRemoteModels(providerName);
-  }, [loadRemoteModels]);
+  const handleEditModel = useCallback(
+    (providerName: string, model: ModelEntry) => {
+      setError(null);
+      setModelDialog({
+        open: true,
+        providerName,
+        editMode: true,
+        originalId: model.id,
+        data: { ...model },
+      });
+      void loadRemoteModels(providerName);
+    },
+    [loadRemoteModels],
+  );
 
   const handleSaveModel = useCallback(async () => {
     try {
@@ -291,31 +326,49 @@ export function ModelsSettingsPage() {
         await sdk.config.addModel(providerName, data);
       }
       setModelDialog({ open: false, providerName: '', editMode: false, originalId: '', data: { ...DEFAULT_MODEL } });
-      queryClient.invalidateQueries({ queryKey: ['modelsConfig'] });
-      queryClient.invalidateQueries({ queryKey: ['models'] });
-      queryClient.invalidateQueries({ queryKey: ['config'] });
+      invalidateAll();
     } catch (e) {
       setError(e instanceof Error ? e.message : t('保存失败'));
     }
-  }, [modelDialog, sdk, queryClient, t]);
+  }, [modelDialog, sdk, invalidateAll, t]);
 
   const handleConfirmDeleteModel = useCallback(async () => {
     if (!deleteModel) return;
     try {
       await sdk.config.deleteModel(deleteModel.provider, deleteModel.modelId);
       setDeleteModel(null);
-      queryClient.invalidateQueries({ queryKey: ['modelsConfig'] });
-      queryClient.invalidateQueries({ queryKey: ['models'] });
-      queryClient.invalidateQueries({ queryKey: ['config'] });
+      invalidateAll();
     } catch (e) {
       setError(e instanceof Error ? e.message : t('删除失败'));
     }
-  }, [deleteModel, sdk, queryClient, t]);
+  }, [deleteModel, sdk, invalidateAll, t]);
 
-  const maskApiKey = (key: string) => {
-    if (key.length <= 8) return '****';
-    return key.slice(0, 4) + '****' + key.slice(-4);
-  };
+  // --- Built-in provider sign-in ---
+
+  // Stable identity: the login dialog re-subscribes to auth events whenever
+  // its callbacks change, and an inline arrow would churn that subscription on
+  // every render of this page.
+  const closeLoginDialog = useCallback(() => {
+    setLoginProvider(null);
+    void queryClient.invalidateQueries({ queryKey: AUTH_PROVIDERS_QUERY_KEY });
+  }, [queryClient]);
+
+  const handleConfirmLogout = useCallback(async () => {
+    if (!logoutProvider) return;
+    const provider = logoutProvider;
+    try {
+      await sdk.auth.logout(provider.id);
+      setLogoutProvider(null);
+      toast(t('已登出 {name}', { name: provider.name }));
+      invalidateAll();
+    } catch (e) {
+      setLogoutProvider(null);
+      toast(
+        t('登出失败：{message}', { message: e instanceof Error ? e.message : String(e) }),
+        'error',
+      );
+    }
+  }, [logoutProvider, sdk, invalidateAll, t]);
 
   if (isLoading) {
     return (
@@ -380,29 +433,36 @@ export function ModelsSettingsPage() {
     setRemoteQuery('');
   };
 
+  const builtinSection = hasAuthApi() ? (
+    <BuiltinProvidersSection onConnect={setLoginProvider} onLogout={setLogoutProvider} />
+  ) : (
+    <p className="rounded-lg border px-3 py-6 text-center text-xs text-muted-foreground">
+      {t('内置服务商登录仅在桌面应用中可用。')}
+    </p>
+  );
+
+  const customSection = (
+    <CustomProvidersSection
+      providers={providers}
+      builtinIds={builtinIds}
+      visibleKeys={visibleKeys}
+      onToggleKey={toggleKeyVisibility}
+      onAddProvider={handleAddProvider}
+      onEditProvider={handleEditProvider}
+      onDeleteProvider={setDeleteProvider}
+      onAddModel={handleAddModel}
+      onEditModel={handleEditModel}
+      onDeleteModel={(provider, modelId) => setDeleteModel({ provider, modelId })}
+    />
+  );
+
   return (
     <div className="flex h-full min-h-0 flex-col">
-      {/* Toolbar. The page title lives in the dialog's own header; this row
-          carries the file being edited and the page's one action. */}
-      <div className="flex shrink-0 items-center justify-between gap-4 border-b px-6 py-3">
-        <p
-          className="min-w-0 truncate text-xs text-muted-foreground"
-          title="~/.pi/agent/models.json"
-        >
-          {t('服务商与模型 · ~/.pi/agent/models.json')}
-        </p>
-        <Button size="sm" className="shrink-0" onClick={handleAddProvider}>
-          <Plus className="mr-1 h-4 w-4" />
-          {t('添加服务商')}
-        </Button>
-      </div>
-
-      {/* Error message */}
       {error && (
         <div className="mx-6 mt-3 flex items-center gap-2 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
           <AlertCircle className="h-4 w-4 shrink-0" />
           <span className="min-w-0 flex-1 break-words">{error}</span>
-          <Button variant="ghost" size="sm" className="ml-auto h-6 px-2 shrink-0" onClick={() => setError(null)}>
+          <Button variant="ghost" size="sm" className="ml-auto h-6 shrink-0 px-2" onClick={() => setError(null)}>
             &times;
           </Button>
         </div>
@@ -412,120 +472,42 @@ export function ModelsSettingsPage() {
           provider URL or API key widens the page instead of wrapping.
           `!important` is required: Radix sets `display: table` as an inline
           style, which a plain class rule cannot override. */}
-      <ScrollArea
-        className="flex-1 px-6 py-5"
-        viewportClassName="[&>div]:!block [&>div]:!min-w-0"
-      >
-        <div className="space-y-4">
-          {Object.keys(providers).length === 0 && (
-            <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-              <p className="text-sm">{t('还没有配置服务商')}</p>
-              <p className="mt-1 text-xs">{t('点右上角「添加服务商」开始配置')}</p>
-            </div>
-          )}
-          {Object.entries(providers).map(([name, provider]) => (
-            <Card key={name} className="overflow-hidden">
-              <CardHeader className="p-3 pb-2">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <CardTitle className="text-sm truncate">{name}</CardTitle>
-                  </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleEditProvider(name)}>
-                      <Pencil className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => setDeleteProvider(name)}>
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                </div>
-                {/* The API badge sits on its own line rather than beside the
-                    title: the API type plus two action buttons crowds the
-                    name, and the badge is reference information, not identity. */}
-                {/* A plain div, not CardDescription: that renders a <p>, and
-                    this block holds block-level children (badges, buttons,
-                    rows) which are invalid inside a paragraph — the browser
-                    closes the <p> early and React's DOM stops matching. */}
-                <div className="text-xs text-muted-foreground space-y-0.5 min-w-0">
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <Badge variant="secondary" className="text-[10px] shrink-0">{provider.api}</Badge>
-                  </div>
-                  <div className="break-all" title={provider.baseUrl}>
-                    URL: {provider.baseUrl}
-                  </div>
-                  <div className="flex items-center gap-1 min-w-0">
-                    <span className="shrink-0">Key:</span>
-                    <code className="text-[10px] bg-muted px-1 rounded break-all" title={provider.apiKey}>
-                      {visibleKeys.has(name) ? provider.apiKey : maskApiKey(provider.apiKey)}
-                    </code>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-5 w-5 shrink-0"
-                      onClick={() => toggleKeyVisibility(name)}
-                    >
-                      {visibleKeys.has(name) ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
-                    </Button>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="px-3 pb-3 pt-0">
-                <Separator className="mb-2" />
-                <div className="flex items-center justify-between gap-2 mb-1">
-                  <span className="text-xs font-medium text-muted-foreground truncate">
-                    {t('模型（{count}）', { count: provider.models.length })}
-                  </span>
-                  <Button variant="outline" size="sm" className="h-7 text-xs shrink-0" onClick={() => handleAddModel(name)}>
-                    <Plus className="h-3 w-3 mr-1" />{t('添加模型')}
-                  </Button>
-                </div>
-                {provider.models.length === 0 ? (
-                  <p className="text-xs text-muted-foreground py-2">{t('还没有模型')}</p>
-                ) : (
-                  <div className="space-y-1">
-                    {provider.models.map((model) => {
-                      const inputType = getModelInputType(model);
-                      return (
-                      <div
-                        key={model.id}
-                        className="flex items-center gap-1.5 rounded-md bg-muted/50 px-2 py-1.5 text-xs"
-                        // The API model id is shown on hover rather than inline:
-                        // at sidebar width it crowds out the display name, and
-                        // it is visible/editable in the edit dialog anyway.
-                        title={model.id}
-                      >
-                        <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                          <span className="font-medium truncate">{model.name}</span>
-                          {inputType === 'multimodal' ? (
-                            <Badge variant="secondary" className="text-[9px] px-1 py-0 h-4 shrink-0">
-                              <EyeIcon className="h-2.5 w-2.5 mr-0.5" />
-                              {t('视觉')}
-                            </Badge>
-                          ) : (
-                            <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 text-muted-foreground shrink-0">
-                              <FileText className="h-2.5 w-2.5 mr-0.5" />
-                              {t('文本')}
-                            </Badge>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-0.5 shrink-0">
-                          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleEditModel(name, model)}>
-                            <Pencil className="h-3 w-3" />
-                          </Button>
-                          <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive hover:text-destructive" onClick={() => setDeleteModel({ provider: name, modelId: model.id })}>
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+      <ScrollArea className="flex-1 px-6 py-4" viewportClassName="[&>div]:!block [&>div]:!min-w-0">
+        {/* Custom providers always lead. They are the user's own setup — not
+            catalog entries — and the section stays short: at most a few cards
+            when configured, one muted line when not. Keeping the position
+            fixed means "my providers" is always in the same place. */}
+        {customSection}
+        <Separator className="my-5" />
+        {builtinSection}
+
+        <p className="pb-2 pt-4 text-[0.6875rem] text-muted-foreground/70">
+          {t('内置服务商的登录凭据保存在 ~/.pi/agent/auth.json；自定义配置保存在 ~/.pi/agent/models.json。')}
+        </p>
       </ScrollArea>
+
+      {/* Built-in provider sign-in */}
+      <ProviderLoginDialog provider={loginProvider} onClose={closeLoginDialog} />
+
+      <AlertDialog
+        open={!!logoutProvider}
+        onOpenChange={(open: boolean) => !open && setLogoutProvider(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('登出服务商？')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('确定登出「{name}」吗？登出后需要重新登录才能使用它的模型。', {
+                name: logoutProvider?.name ?? '',
+              })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('取消')}</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmLogout}>{t('登出')}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Provider dialog */}
       <Dialog open={providerDialog.open} onOpenChange={(open) => !open && setProviderDialog({ open: false, editMode: false, originalName: '', name: '', data: { ...DEFAULT_PROVIDER } })}>
@@ -556,7 +538,7 @@ export function ModelsSettingsPage() {
                 onChange={(e) => setProviderDialog((d) => ({ ...d, name: e.target.value }))}
               />
               {providerDialog.editMode && (
-                <p className="mt-1 text-[10px] text-muted-foreground">
+                <p className="mt-1 text-[0.625rem] text-muted-foreground">
                   {t('改名会一并移动该服务商下的所有模型配置。')}
                 </p>
               )}
@@ -595,7 +577,7 @@ export function ModelsSettingsPage() {
                     <SelectItem key={opt.value} value={opt.value}>
                       <span className="flex items-center gap-2">
                         <span>{opt.label}</span>
-                        <span className="text-[10px] text-muted-foreground">{opt.value}</span>
+                        <span className="text-[0.625rem] text-muted-foreground">{opt.value}</span>
                       </span>
                     </SelectItem>
                   ))}
@@ -614,7 +596,7 @@ export function ModelsSettingsPage() {
                   }
                 />
               )}
-              <p className="mt-1 text-[10px] text-muted-foreground">
+              <p className="mt-1 text-[0.625rem] text-muted-foreground">
                 {t('选列表里的标准接口；第三方扩展可选「自定义…」直接填。')}
               </p>
             </div>
@@ -660,7 +642,7 @@ export function ModelsSettingsPage() {
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <div className="text-xs font-medium">{t('可用模型')}</div>
-                <div className="text-[10px] text-muted-foreground">
+                <div className="text-[0.625rem] text-muted-foreground">
                   {t('从服务商拉取；点击填入下方字段。')}
                 </div>
               </div>
@@ -682,11 +664,11 @@ export function ModelsSettingsPage() {
             </div>
 
             {remoteErrorText && (
-              <p className="mt-2 text-[11px] leading-relaxed text-destructive">{remoteErrorText}</p>
+              <p className="mt-2 text-[0.6875rem] leading-relaxed text-destructive">{remoteErrorText}</p>
             )}
 
             {!remote.loading && remote.models && remote.models.length === 0 && (
-              <p className="mt-2 text-[11px] text-muted-foreground">
+              <p className="mt-2 text-[0.6875rem] text-muted-foreground">
                 {t('没有从服务商获取到模型。')}
               </p>
             )}
@@ -721,16 +703,16 @@ export function ModelsSettingsPage() {
                           {model.name ?? model.id}
                         </span>
                         {model.name && model.name !== model.id && (
-                          <span className="shrink-0 font-mono text-[10px] text-muted-foreground">
+                          <span className="shrink-0 font-mono text-[0.625rem] text-muted-foreground">
                             {model.id}
                           </span>
                         )}
                         {isCurrent ? (
-                          <Badge variant="outline" className="shrink-0 text-[9px]">
+                          <Badge variant="outline" className="shrink-0 text-[0.5625rem]">
                             {t('当前')}
                           </Badge>
                         ) : isAdded ? (
-                          <Badge variant="secondary" className="shrink-0 text-[9px]">
+                          <Badge variant="secondary" className="shrink-0 text-[0.5625rem]">
                             {t('已添加')}
                           </Badge>
                         ) : null}
@@ -738,7 +720,7 @@ export function ModelsSettingsPage() {
                     );
                   })}
                   {remoteVisible.length === 0 && (
-                    <div className="px-2 py-2 text-center text-[11px] text-muted-foreground">
+                    <div className="px-2 py-2 text-center text-[0.6875rem] text-muted-foreground">
                       {t('没有匹配的模型')}
                     </div>
                   )}
@@ -757,7 +739,7 @@ export function ModelsSettingsPage() {
                 onChange={(e) => setModelDialog((d) => ({ ...d, data: { ...d.data, id: e.target.value } }))}
               />
               {modelDialog.editMode && (
-                <p className="text-[10px] text-muted-foreground mt-1">
+                <p className="mt-1 text-[0.625rem] text-muted-foreground">
                   {t('改 ID 等于重命名模型：默认模型的选择会跟着改，历史会话保留当时使用的 ID。')}
                 </p>
               )}
@@ -800,7 +782,7 @@ export function ModelsSettingsPage() {
                   </SelectItem>
                 </SelectContent>
               </Select>
-              <p className="text-[10px] text-muted-foreground mt-1">
+              <p className="mt-1 text-[0.625rem] text-muted-foreground">
                 {t('视觉模型可以接收图片；语言模型只接收文本')}
               </p>
             </div>

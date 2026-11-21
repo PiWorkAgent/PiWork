@@ -81,14 +81,14 @@ export function StorageSettingsPage() {
         <p className="text-xs text-muted-foreground">
           {t('读取存储信息失败')}
           <br />
-          <span className="font-mono text-[10px]">
+          <span className="font-mono text-[0.625rem]">
             {error instanceof Error ? error.message : t('未知错误')}
           </span>
         </p>
         <Button
           variant="outline"
           size="sm"
-          className="h-7 text-[11px]"
+          className="h-7 text-[0.6875rem]"
           onClick={() => void refetch()}
         >
           {t('重试')}
@@ -183,12 +183,12 @@ export function StorageSettingsPage() {
           <h3 className="text-sm font-medium">{t('数据位置')}</h3>
           <Badge
             variant={data.custom ? 'secondary' : 'outline'}
-            className="text-[10px] font-normal"
+            className="text-[0.625rem] font-normal"
           >
             {data.custom ? t('自定义') : t('默认')}
           </Badge>
         </div>
-        <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+        <p className="mt-1 text-[0.6875rem] leading-relaxed text-muted-foreground">
           {t('会话记录、配置、插件和技能都放在这个文件夹里。换到更大的磁盘时，数据会跟着走。')}
         </p>
 
@@ -196,7 +196,7 @@ export function StorageSettingsPage() {
           <div className="flex items-start gap-2">
             <HardDrive className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
             <div
-              className="min-w-0 break-all font-mono text-[11px] text-muted-foreground"
+              className="min-w-0 break-all font-mono text-[0.6875rem] text-muted-foreground"
               title={data.agentDir}
             >
               {data.agentDir}
@@ -206,7 +206,7 @@ export function StorageSettingsPage() {
           <div className="mt-2 flex flex-wrap items-center gap-1.5">
             <Button
               size="sm"
-              className="h-7 text-[11px]"
+              className="h-7 text-[0.6875rem]"
               disabled={busy !== null}
               onClick={() => void change()}
             >
@@ -220,7 +220,7 @@ export function StorageSettingsPage() {
               <Button
                 variant="outline"
                 size="sm"
-                className="h-7 text-[11px]"
+                className="h-7 text-[0.6875rem]"
                 disabled={busy !== null}
                 onClick={() => void reset()}
               >
@@ -230,7 +230,7 @@ export function StorageSettingsPage() {
             <Button
               variant="ghost"
               size="sm"
-              className="h-7 text-[11px]"
+              className="h-7 text-[0.6875rem]"
               onClick={() => openWithSystemApp(data.agentDir)}
             >
               <FolderOpen className="mr-1 h-3.5 w-3.5" />
@@ -240,8 +240,8 @@ export function StorageSettingsPage() {
 
           <div className="mt-2 flex items-start justify-between gap-3 border-t pt-2">
             <div className="min-w-0">
-              <div className="text-[11px] font-medium">{t('换位置时复制现有数据')}</div>
-              <p className="mt-0.5 text-[10px] leading-relaxed text-muted-foreground">
+              <div className="text-[0.6875rem] font-medium">{t('换位置时复制现有数据')}</div>
+              <p className="mt-0.5 text-[0.625rem] leading-relaxed text-muted-foreground">
                 {t(
                   '打开时会把当前文件夹里的内容复制到新位置；关掉则从空文件夹开始。目标文件夹里已经有数据时不会被覆盖，而是直接使用。',
                 )}
@@ -256,7 +256,7 @@ export function StorageSettingsPage() {
         </div>
 
         {data.restartRequired && (
-          <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md bg-amber-500/10 px-3 py-2 text-[11px] text-amber-700 dark:text-amber-400">
+          <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md bg-amber-500/10 px-3 py-2 text-[0.6875rem] text-amber-700 dark:text-amber-400">
             <span className="min-w-0 break-all">
               {data.pendingAgentDir
                 ? t('新位置 {path} 会在重启后生效，现在仍在使用上面的位置。', {
@@ -267,7 +267,7 @@ export function StorageSettingsPage() {
             <Button
               variant="outline"
               size="sm"
-              className="ml-auto h-7 shrink-0 text-[11px]"
+              className="ml-auto h-7 shrink-0 text-[0.6875rem]"
               disabled={busy !== null}
               onClick={() => void restart()}
             >
@@ -281,7 +281,7 @@ export function StorageSettingsPage() {
       <section className="pt-5">
         <div className="flex items-baseline justify-between gap-4">
           <h3 className="text-sm font-medium">{t('占用空间')}</h3>
-          <span className="text-[11px] text-muted-foreground">
+          <span className="text-[0.6875rem] text-muted-foreground">
             {t('共 {size}', { size: formatBytes(data.totalBytes) })}
           </span>
         </div>
@@ -292,7 +292,7 @@ export function StorageSettingsPage() {
           ))}
         </div>
 
-        <p className="pb-4 pt-2 text-[11px] leading-relaxed text-muted-foreground/70">
+        <p className="pb-4 pt-2 text-[0.6875rem] leading-relaxed text-muted-foreground/70">
           {t('点一行在文件管理器中打开。大小包含文件夹里的全部内容，符号链接不计入。')}
         </p>
       </section>
@@ -314,11 +314,11 @@ function StorageRow({ entry }: { entry: StorageEntry }) {
     >
       <div className="min-w-0">
         <div className="text-xs font-medium">{t(copy.label)}</div>
-        <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">{t(copy.hint)}</p>
+        <p className="mt-0.5 text-[0.6875rem] leading-relaxed text-muted-foreground">{t(copy.hint)}</p>
       </div>
       <div className="shrink-0 text-right">
         <div className="text-xs tabular-nums">{formatBytes(entry.bytes)}</div>
-        <div className="text-[10px] text-muted-foreground">
+        <div className="text-[0.625rem] text-muted-foreground">
           {t('{n} 个文件', { n: entry.files.toLocaleString() })}
         </div>
       </div>

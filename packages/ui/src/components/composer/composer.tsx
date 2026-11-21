@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState, useRef, useEffect, DragEvent } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Square, Upload, CornerDownRight, Sparkles, X } from 'lucide-react';
+import { matchesModelSelection } from '@pi/sdk-wrapper';
 import { cn, isPreviewableInRightPanel } from '@/lib/utils';
 import { streamReducer, initialStreamingState } from '@/lib/stream-reducer';
 import { Button } from '@/components/ui/button';
@@ -976,20 +977,26 @@ export function Composer() {
 
       if (cmdName === '/model') {
         const currentModelId = config?.defaultModelId ?? t('未设置');
-        const modelItems: Array<{ name: string; desc: string }> = [];
+        // One section per provider: with built-in sign-in the list can span
+        // many providers and a single flat block stops being readable.
+        const modelSections: Array<{ title: string; items: Array<{ name: string; desc: string }> }> = [];
         if (availableModels && availableModels.length > 0) {
+          const byProvider = new Map<string, Array<{ name: string; desc: string }>>();
           for (const m of availableModels) {
-            const marker = m.id === currentModelId ? t('（当前）') : '';
+            const marker = matchesModelSelection(config?.defaultModelId ?? '', m) ? t('（当前）') : '';
             const status = m.isAvailable ? '' : t('［不可用］');
-            modelItems.push({ name: m.name, desc: `${marker}${status}`.trim() });
+            const items = byProvider.get(m.providerName) ?? [];
+            items.push({ name: m.name, desc: `${marker}${status}`.trim() });
+            byProvider.set(m.providerName, items);
           }
+          for (const [title, items] of byProvider) modelSections.push({ title, items });
         } else {
-          modelItems.push({ name: t('正在加载'), desc: t('正在加载模型…') });
+          modelSections.push({
+            title: t('可用模型'),
+            items: [{ name: t('正在加载'), desc: t('正在加载模型…') }],
+          });
         }
-        const modelSections: Array<{ title: string; items: Array<{ name: string; desc: string }> }> = [
-          { title: t('可用模型'), items: modelItems },
-          { title: t('当前'), items: [{ name: currentModelId, desc: '' }] },
-        ];
+        modelSections.push({ title: t('当前'), items: [{ name: currentModelId, desc: '' }] });
         setCommandDialog({
           title: t('模型'),
           subtitle: t('选择会话使用的模型'),
@@ -1442,10 +1449,10 @@ export function Composer() {
             <span
               key={skill.id}
               title={skill.description}
-              className="inline-flex items-center gap-1 rounded-md border border-border bg-muted/40 py-0.5 pl-2 pr-1 text-[11px]"
+              className="inline-flex items-center gap-1 rounded-md border border-border bg-muted/40 py-0.5 pl-2 pr-1 text-[0.6875rem]"
             >
               <Sparkles className="h-3 w-3 shrink-0 text-muted-foreground" />
-              <span className="max-w-[180px] truncate">{skill.name}</span>
+              <span className="max-w-[11.25rem] truncate">{skill.name}</span>
               <button
                 type="button"
                 aria-label={t('移除技能引用')}
@@ -1578,7 +1585,7 @@ export function Composer() {
               {/* Label and shortcut are the first things to go when the row
                   is squeezed; the aria-label above stays either way. */}
               <span className="@max-[440px]:hidden">{t('引导')}</span>
-              <kbd className="ml-0.5 hidden text-[10px] opacity-60 @[440px]:inline">⌃↵</kbd>
+              <kbd className="ml-0.5 hidden text-[0.625rem] opacity-60 @[440px]:inline">⌃↵</kbd>
             </Button>
             <Button
               size="icon"

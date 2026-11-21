@@ -8,11 +8,14 @@ import {
   createRealFileService,
   createRealConfigService,
   createRealChatService,
+  createRealAuthService,
 } from '@pi/sdk-wrapper/adapters';
 import type { PluginDoc, RealChatServiceOptions } from '@pi/sdk-wrapper/adapters';
-import type { WorkspaceService, SessionService, FileService, ConfigService, ChatService, SendMessageParams, FileSearchOptions } from '@pi/sdk-wrapper';
+import type { WorkspaceService, SessionService, FileService, ConfigService, ChatService, AuthService, SendMessageParams, FileSearchOptions } from '@pi/sdk-wrapper';
 import { windows } from '@main/windows';
+import { APP_NAME } from '@main/branding';
 import { hostWindowOf } from './guard';
+import { createAuthIpc, type AuthIpc } from './auth.js';
 
 // Services are created during registerIpcHandlers() (called from app.whenReady)
 // to avoid module-load-time initialization in packaged builds.
@@ -21,6 +24,8 @@ let sessionService: SessionService;
 let fileService: FileService;
 let configService: ConfigService;
 let chatService: ChatService;
+let authService: AuthService;
+let authIpc: AuthIpc;
 
 interface SdkRequest {
   id: string;
@@ -63,6 +68,21 @@ export function registerIpcHandlers(
   sessionService = createRealSessionService();
   fileService = createRealFileService();
   configService = createRealConfigService(defaultCwd, undefined, modelRuntime, settingsManager);
+
+  // Sign-in for built-in providers. The flow runs inside the adapter (OAuth
+  // callback servers, device codes, auth.json writes); this layer only routes
+  // its events to the window that started it.
+  authIpc = createAuthIpc({
+    getService: () => authService,
+    broadcast: (channel, payload) => windows.broadcast(channel, payload),
+  });
+  authService = createRealAuthService({
+    settingsManager,
+    runtime: modelRuntime,
+    sink: authIpc.sink,
+    agentName: APP_NAME,
+  });
+
   onSessionDeletedHook = options?.onSessionDeleted;
   chatService = createRealChatService(defaultCwd, modelRuntime, settingsManager, {
     customToolsProvider: options?.customToolsProvider,
@@ -201,6 +221,9 @@ async function routeRequest(
     case 'chat': return handleChat(action, params);
     case 'file': return handleFile(action, params);
     case 'config': return handleConfig(action, params);
+    // Auth is the one service whose state is per-window (a login belongs to
+    // the window that started it), so it needs the caller, not just the args.
+    case 'auth': return authIpc.handle(action, params, event!.sender);
     case 'system': return handleSystem(action, event);
     default:
       throw new Error(`Unknown service: ${service}`);

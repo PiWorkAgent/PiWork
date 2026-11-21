@@ -70,7 +70,7 @@ export function MentionMenu({ items, query, highlightedIndex, onSelect }: Mentio
       <div ref={containerRef} className="max-h-72 overflow-y-auto p-1">
         {Object.entries(grouped).map(([type, groupItems]) => (
           <div key={type}>
-            <div className="px-2 py-1.5 text-[10px] font-semibold uppercase text-muted-foreground">
+            <div className="px-2 py-1.5 text-[0.625rem] font-semibold uppercase text-muted-foreground">
               {typeLabels[type as MentionTarget] || type}
             </div>
             {groupItems.map((item) => {
@@ -85,7 +85,7 @@ export function MentionMenu({ items, query, highlightedIndex, onSelect }: Mentio
                   )}
                   onMouseDown={(e) => { e.preventDefault(); onSelect(item); }}
                 >
-                  <span className="flex h-5 w-5 items-center justify-center rounded bg-muted text-[10px] font-bold text-muted-foreground shrink-0">
+                  <span className="flex h-5 w-5 items-center justify-center rounded bg-muted text-[0.625rem] font-bold text-muted-foreground shrink-0">
                     {typeIcons[item.type as MentionTarget] || '?'}
                   </span>
                   <span className="font-medium truncate">@{item.label}</span>

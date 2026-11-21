@@ -51,7 +51,7 @@ export function SlashCommandMenu({ commands, query, highlightedIndex, onSelect }
       <div ref={containerRef} className="max-h-64 overflow-y-auto p-1">
         {Object.entries(grouped).map(([category, cmds]) => (
           <div key={category}>
-            <div className="px-2 py-1.5 text-[10px] font-semibold uppercase text-muted-foreground">
+            <div className="px-2 py-1.5 text-[0.625rem] font-semibold uppercase text-muted-foreground">
               {COMMAND_CATEGORY_LABELS[category] ? t(COMMAND_CATEGORY_LABELS[category]) : category}
             </div>
             {cmds.map((cmd) => {
@@ -67,7 +67,7 @@ export function SlashCommandMenu({ commands, query, highlightedIndex, onSelect }
                   onMouseDown={(e) => { e.preventDefault(); onSelect(cmd); }}
                 >
                   <span className="font-medium">{cmd.name}</span>
-                  <span className="ml-auto text-xs text-muted-foreground truncate max-w-[160px]">
+                  <span className="ml-auto text-xs text-muted-foreground truncate max-w-[10rem]">
                     {commandDescription(cmd, t)}
                   </span>
                 </div>

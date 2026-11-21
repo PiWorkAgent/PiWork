@@ -44,12 +44,12 @@ function CodeBlock({ children, className }: { children?: React.ReactNode; classN
   return (
     <div className="group relative my-2 overflow-hidden rounded-md border border-border">
       <div className="flex items-center justify-between px-3 py-1.5 bg-muted/50 border-b border-border">
-        <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+        <span className="text-[0.625rem] font-medium text-muted-foreground uppercase tracking-wider">
           {language || 'code'}
         </span>
         <button
           onClick={handleCopy}
-          className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors opacity-0 group-hover:opacity-100"
+          className="flex items-center gap-1 text-[0.625rem] text-muted-foreground hover:text-foreground transition-colors opacity-0 group-hover:opacity-100"
           aria-label={copied ? t('已复制') : t('复制代码')}
         >
           {copied ? (

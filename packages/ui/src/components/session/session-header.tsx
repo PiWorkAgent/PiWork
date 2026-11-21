@@ -140,7 +140,7 @@ export function SessionHeader() {
         <div className="group flex min-w-0 items-center gap-0.5">
           <span
             className={cn(
-              'max-w-[320px] truncate px-1 text-sm',
+              'max-w-[20rem] truncate px-1 text-sm',
               activeSession ? 'font-medium text-foreground' : 'text-muted-foreground',
             )}
             title={activeSession?.title}

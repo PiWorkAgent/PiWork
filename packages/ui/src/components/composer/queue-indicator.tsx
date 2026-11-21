@@ -54,7 +54,7 @@ function QueueChip({
       title={`${label}: ${message}`}
     >
       <Icon className="h-3 w-3 text-muted-foreground shrink-0" />
-      <span className="text-muted-foreground max-w-[160px] truncate">{message}</span>
+      <span className="text-muted-foreground max-w-[10rem] truncate">{message}</span>
       <button
         type="button"
         onClick={onRemove}

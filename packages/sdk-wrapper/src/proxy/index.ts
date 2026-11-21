@@ -6,6 +6,7 @@ import { createProxySessionService } from './session.js';
 import { createProxyChatService } from './chat.js';
 import { createProxyFileService } from './file.js';
 import { createProxyConfigService } from './config.js';
+import { createProxyAuthService } from './auth.js';
 export interface ProxySDKClientOptions {
   transport: Transport;
 }
@@ -24,5 +25,6 @@ export function createProxySDKClient(options: ProxySDKClientOptions): PiSDKClien
     chat: createProxyChatService(transport),
     file: createProxyFileService(transport),
     config: createProxyConfigService(transport),
+    auth: createProxyAuthService(transport),
   });
 }

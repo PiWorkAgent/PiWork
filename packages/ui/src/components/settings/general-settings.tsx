@@ -34,6 +34,55 @@ const PROXY_OPTIONS: { value: ProxyMode; label: MessageKey }[] = [
   { value: 'manual', label: '手动配置' },
 ];
 
+/**
+ * 字号 steps. Values are multipliers on the root font size (see
+ * `applyFontScale`): rem-based text and spacing scale together, so controls
+ * stay proportional instead of overflowing their height at a larger size.
+ */
+const FONT_SCALE_OPTIONS: { value: number; label: MessageKey }[] = [
+  { value: 0.9, label: '小' },
+  { value: 1, label: '标准' },
+  { value: 1.15, label: '大' },
+  { value: 1.3, label: '特大' },
+];
+
+/** Segmented control(s) — the theme and font-size rows both use one. */
+function Segmented<T extends string | number>({
+  options,
+  value,
+  onChange,
+  ariaLabel,
+}: {
+  options: { value: T; label: MessageKey }[];
+  value: T;
+  onChange: (value: T) => void;
+  ariaLabel: string;
+}) {
+  const { t } = useI18n();
+  return (
+    <div className="flex rounded-md border p-0.5">
+      {options.map((opt) => (
+        <button
+          key={opt.value}
+          type="button"
+          aria-pressed={value === opt.value}
+          aria-label={ariaLabel}
+          onClick={() => onChange(opt.value)}
+          className={cn(
+            'rounded px-2.5 py-1 text-xs transition-colors',
+            'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring',
+            value === opt.value
+              ? 'bg-accent font-medium text-accent-foreground'
+              : 'text-muted-foreground hover:text-foreground',
+          )}
+        >
+          {t(opt.label)}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function Row({
   label,
   hint,
@@ -73,7 +122,7 @@ function Row({
  */
 export function GeneralSettingsPage() {
   const { t } = useI18n();
-  const { theme, setTheme } = useTheme();
+  const { theme, setTheme, fontScale, setFontScale } = useTheme();
   const language = useLanguageStore((s) => s.language);
   const setLanguage = useLanguageStore((s) => s.setLanguage);
   const compactMode = useUIStore((s) => s.compactMode);
@@ -83,25 +132,21 @@ export function GeneralSettingsPage() {
     <div className="h-full overflow-y-auto overscroll-contain px-6 py-2">
       <div className="divide-y">
         <Row label={t('外观')} hint={t('整个应用的配色，立即生效。')}>
-          <div className="flex rounded-md border p-0.5">
-            {THEME_OPTIONS.map((opt) => (
-              <button
-                key={opt.value}
-                type="button"
-                aria-pressed={theme === opt.value}
-                onClick={() => setTheme(opt.value)}
-                className={cn(
-                  'rounded px-2.5 py-1 text-xs transition-colors',
-                  'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring',
-                  theme === opt.value
-                    ? 'bg-accent font-medium text-accent-foreground'
-                    : 'text-muted-foreground hover:text-foreground',
-                )}
-              >
-                {t(opt.label)}
-              </button>
-            ))}
-          </div>
+          <Segmented
+            options={THEME_OPTIONS}
+            value={theme}
+            onChange={setTheme}
+            ariaLabel={t('外观')}
+          />
+        </Row>
+
+        <Row label={t('字号')} hint={t('调整界面文字大小，立即生效。')}>
+          <Segmented
+            options={FONT_SCALE_OPTIONS}
+            value={fontScale}
+            onChange={setFontScale}
+            ariaLabel={t('字号')}
+          />
         </Row>
 
         <Row label={t('语言')} hint={t('切换后立即生效，并记住选择。')}>
@@ -133,8 +178,8 @@ export function GeneralSettingsPage() {
         {hasProxyApi() && <ProxyRow />}
       </div>
 
-      <p className="pb-4 pt-2 text-[11px] text-muted-foreground/70">
-        {t('外观、语言和网络设置保存在本机。')}
+      <p className="pb-4 pt-2 text-[0.6875rem] text-muted-foreground/70">
+        {t('外观、语言、字号和网络设置保存在本机。')}
       </p>
     </div>
   );
@@ -222,7 +267,7 @@ function ProxyRow() {
       hint={hint}
       footer={
         <>
-          {error && <p className="mt-1.5 text-[11px] text-destructive">{error}</p>}
+          {error && <p className="mt-1.5 text-[0.6875rem] text-destructive">{error}</p>}
           {activeMode === 'manual' && (
             <div className="mt-2">
               <div className="flex items-center gap-2">
@@ -242,9 +287,9 @@ function ProxyRow() {
                   autoComplete="off"
                   className="h-8 w-[280px] font-mono text-xs"
                 />
-                {busy && <span className="text-[11px] text-muted-foreground">{t('保存中…')}</span>}
+                {busy && <span className="text-[0.6875rem] text-muted-foreground">{t('保存中…')}</span>}
               </div>
-              <p className="mt-1.5 text-[11px] text-muted-foreground/70">
+              <p className="mt-1.5 text-[0.6875rem] text-muted-foreground/70">
                 {t('填好后按回车或点别处保存；也可以写 socks5://主机:端口。')}
               </p>
             </div>

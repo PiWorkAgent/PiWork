@@ -1,8 +1,8 @@
 import { useEffect } from 'react';
-import { useThemeStore } from '../stores/theme-store';
+import { applyFontScale, useThemeStore } from '../stores/theme-store';
 
 export function useTheme() {
-  const { theme, resolvedTheme, setTheme, setResolvedTheme } = useThemeStore();
+  const { theme, resolvedTheme, fontScale, setTheme, setResolvedTheme, setFontScale } = useThemeStore();
 
   useEffect(() => {
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
@@ -29,7 +29,16 @@ export function useTheme() {
     return () => mediaQuery.removeEventListener('change', handler);
   }, [theme, setResolvedTheme]);
 
-  return { theme, resolvedTheme, setTheme };
+  // The action already applies the size; doing it once more on mount (and on
+  // any future external `setState`) keeps <html> in step with the store.
+  // The native title-bar overlay is sized in device pixels by the host, not by
+  // CSS, so it has to be told again whenever the header band changes height.
+  useEffect(() => {
+    applyFontScale(fontScale);
+    syncNativeTitleBar();
+  }, [fontScale]);
+
+  return { theme, resolvedTheme, fontScale, setTheme, setFontScale };
 }
 
 function applyTheme(theme: 'light' | 'dark') {
@@ -57,5 +66,11 @@ function syncNativeTitleBar() {
   const symbolColor = styles.color;
   if (!color || !symbolColor) return;
 
-  api.invoke('pi:window:setTitleBarOverlay', { color, symbolColor }).catch(() => {});
+  // The caption buttons sit on the header band, which is sized in rem and so
+  // follows the 字号 setting. Report its measured height rather than a copy of
+  // the constant in main, which would drift the moment either side changes.
+  const header = document.querySelector<HTMLElement>('[data-drag-region]');
+  const height = header?.offsetHeight;
+
+  api.invoke('pi:window:setTitleBarOverlay', { color, symbolColor, height }).catch(() => {});
 }

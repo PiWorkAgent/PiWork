@@ -346,7 +346,7 @@ export function FileTree() {
             >
               <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
               <span className="min-w-0 flex-1 truncate text-xs">{entry.name}</span>
-              <span className="shrink-0 truncate text-[10px] text-muted-foreground max-w-[45%]">
+              <span className="shrink-0 truncate text-[0.625rem] text-muted-foreground max-w-[45%]">
                 {entry.path.split('/').slice(-2, -1)[0]}
               </span>
               <button
@@ -368,12 +368,12 @@ export function FileTree() {
           {/* The three non-empty outcomes are reported differently on purpose —
               "capped" and "partly unreadable" are not the same as "no matches". */}
           {!searching && searchResult?.truncated && (
-            <p className="px-3 py-2 text-[11px] text-muted-foreground">
+            <p className="px-3 py-2 text-[0.6875rem] text-muted-foreground">
               {t('结果已截断（已扫描 {count} 个目录）', { count: searchResult.scanned })}
             </p>
           )}
           {!searching && !!searchResult?.errors?.length && (
-            <p className="px-3 py-2 text-[11px] text-amber-600 dark:text-amber-500">
+            <p className="px-3 py-2 text-[0.6875rem] text-amber-600 dark:text-amber-500">
               {t('{count} 个目录无法读取', { count: searchResult.errors.length })}
             </p>
           )}

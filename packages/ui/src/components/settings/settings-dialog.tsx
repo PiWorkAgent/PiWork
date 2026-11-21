@@ -112,7 +112,7 @@ export function SettingsDialog() {
             aria-label={t('设置分类')}
             className="flex w-[180px] shrink-0 flex-col gap-0.5 border-r bg-muted/30 p-3"
           >
-            <div className="px-2.5 pb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+            <div className="px-2.5 pb-2 text-[0.6875rem] font-medium uppercase tracking-wide text-muted-foreground">
               {t('设置')}
             </div>
             {sections.map(({ id, label, icon: Icon }) => (
@@ -134,7 +134,7 @@ export function SettingsDialog() {
                 {t(label)}
               </button>
             ))}
-            <div className="mt-auto px-2.5 pt-3 text-[10px] leading-relaxed text-muted-foreground/70">
+            <div className="mt-auto px-2.5 pt-3 text-[0.625rem] leading-relaxed text-muted-foreground/70">
               {t('改动即时保存，关掉不丢。')}
             </div>
           </nav>

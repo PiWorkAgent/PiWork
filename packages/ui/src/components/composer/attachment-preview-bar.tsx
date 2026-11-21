@@ -28,7 +28,7 @@ export function AttachmentPreviewBar({ attachments, onRemove, onPreview }: Attac
           ) : (
             <File className="h-3 w-3 shrink-0" />
           )}
-          <span className="max-w-[140px] truncate">{att.name}</span>
+          <span className="max-w-[8.75rem] truncate">{att.name}</span>
           {onPreview && (
             <Eye className="h-3 w-3 shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
           )}

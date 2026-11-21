@@ -3,6 +3,7 @@ import { createRealSessionService } from './session.js';
 import { createRealChatService } from './chat.js';
 import { createRealFileService } from './file.js';
 import { createRealConfigService } from './config.js';
+import { createRealAuthService } from './auth.js';
 
 export {
   createRealWorkspaceService,
@@ -10,7 +11,15 @@ export {
   createRealChatService,
   createRealFileService,
   createRealConfigService,
+  createRealAuthService,
 };
+
+export { toModelInfo } from './config.js';
+export { deriveProviderStatus } from './auth-status.js';
+export type { ProviderStatusInput, ProviderStatusResult } from './auth-status.js';
+export { AuthInteractionBridge } from '../utils/auth-bridge.js';
+export type { BridgePrompt, AuthEventSink } from '../utils/auth-bridge.js';
+export type { RealAuthServiceOptions } from './auth.js';
 
 export type { PluginDoc, RealChatServiceOptions, McpChatOptions, RunSettledInfo } from './chat.js';
 export { formatPluginDocsForPrompt } from './chat.js';

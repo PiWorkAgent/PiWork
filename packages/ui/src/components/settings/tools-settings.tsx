@@ -57,7 +57,7 @@ export function ToolsSettingsPage() {
 
   return (
     <div className="h-full w-full overflow-x-hidden overflow-y-auto overscroll-contain px-6 py-2">
-      <p className="pb-2 pt-2 text-[11px] leading-relaxed text-muted-foreground/70">
+      <p className="pb-2 pt-2 text-[0.6875rem] leading-relaxed text-muted-foreground/70">
         {t('关闭后模型看不到这个工具，也不会在提示词里提到它。设置保存在本机，下一次发送时生效。')}
       </p>
 
@@ -67,7 +67,7 @@ export function ToolsSettingsPage() {
 
       {groups.map((group) => (
         <div key={group.key} className="w-full pt-3">
-          <div className="pb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground/60">
+          <div className="pb-1 text-[0.6875rem] font-medium uppercase tracking-wide text-muted-foreground/60">
             {group.title}
           </div>
           <div className="w-full divide-y">

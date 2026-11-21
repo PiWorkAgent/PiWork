@@ -3,8 +3,9 @@ import { join, dirname, parse, resolve } from 'path';
 import { homedir } from 'os';
 import type { ConfigService } from '../services/config.js';
 import { SettingsManager, getAgentDir, loadSkills } from '@earendil-works/pi-coding-agent';
-import type { ModelRegistry, ModelRuntime, Skill as SdkSkill } from '@earendil-works/pi-coding-agent';
-import { createModelRegistry, getSharedModelRuntime } from './model-runtime.js';
+import type { ModelRuntime, Skill as SdkSkill } from '@earendil-works/pi-coding-agent';
+import { getSharedModelRuntime } from './model-runtime.js';
+import { matchesModelSelection, preferredModelSelection } from '../utils/model-selection.js';
 import type { Config, ModelCapabilities, ModelInfo, ModelProvider, ModelsConfig, ProviderEntry, ModelEntry, Skill } from '@pi/types';
 
 // ── Multimodal model auto-detection ──
@@ -138,57 +139,19 @@ function toModelProvider(raw: string): ModelProvider {
   return 'custom';
 }
 
-// Environment variable names for built-in providers
-const BUILT_IN_PROVIDER_ENV_KEYS: Record<string, string> = {
-  anthropic: 'ANTHROPIC_API_KEY',
-  openai: 'OPENAI_API_KEY',
-  google: 'GOOGLE_API_KEY',
-};
-
-function getConfiguredModelProviders(): Set<string> {
-  const providers = new Set<string>();
-
-  // 1. Providers from models.json
-  const modelsJsonPath = join(getAgentDir(), 'models.json');
-  try {
-    if (existsSync(modelsJsonPath)) {
-      const raw = readFileSync(modelsJsonPath, 'utf-8');
-      const config = JSON.parse(raw);
-      if (config?.providers) {
-        for (const name of Object.keys(config.providers)) {
-          providers.add(name);
-        }
-      }
-    }
-  } catch {
-    // models.json unreadable – skip
-  }
-
-  // 2. Built-in providers with env var API keys
-  for (const [provider, envKey] of Object.entries(BUILT_IN_PROVIDER_ENV_KEYS)) {
-    if (process.env[envKey]) {
-      providers.add(provider);
-    }
-  }
-
-  return providers;
-}
-
 // models.json helpers
-
-function getModelsJsonModelIds(): Set<string> {
-  const config = readModelsConfig();
-  const ids = new Set<string>();
-  for (const provider of Object.values(config.providers)) {
-    for (const model of provider.models) {
-      ids.add(model.id);
-    }
-  }
-  return ids;
-}
 
 function getModelsJsonPath(): string {
   return join(getAgentDir(), 'models.json');
+}
+
+/**
+ * Provider ids defined by models.json. Used to tell custom providers from the
+ * SDK's built-ins — `runtime.getRegisteredProviderIds()` only covers
+ * extension-registered providers, not file-configured ones.
+ */
+export function modelsJsonProviderIds(): Set<string> {
+  return new Set(Object.keys(readModelsConfig().providers));
 }
 
 function readModelsConfig(): ModelsConfig {
@@ -260,36 +223,95 @@ export function migrateModelsConfig(): number {
   return patched;
 }
 
-// Re-read configured providers after models.json changes
-async function refreshConfiguredProviders(modelRegistry: ModelRegistry): Promise<Set<string>> {
-  // Re-create registry to pick up changes
-  const providers = getConfiguredModelProviders();
-  // Force registry refresh
+/**
+ * Re-read models.json into the runtime after a write, so a new provider (or a
+ * new model on one) is visible to the very next `listModels()` call. Network
+ * refreshes stay at the caller's discretion — catalog fetches are the auth
+ * flow's job (`createRealAuthService`), not a config write's.
+ */
+async function refreshAfterModelsChange(runtime: ModelRuntime): Promise<void> {
   try {
-    await modelRegistry.refresh();
+    await runtime.refresh({ allowNetwork: false });
   } catch {
-    // refresh might not be available on in-memory instance
+    // In-memory runtimes (tests) may not support refresh; the next login /
+    // launch reloads models.json anyway.
   }
-  return providers;
+}
+
+/**
+ * Map one SDK model onto the renderer's shape.
+ *
+ * Exported for tests: the provider metadata is what the picker groups by, and
+ * `isAvailable` is always true here because callers only see models from
+ * `runtime.getAvailable()`.
+ */
+export function toModelInfo(
+  model: {
+    id: string;
+    name: string;
+    provider: string;
+    reasoning?: boolean;
+    thinkingLevelMap?: Record<string, string | null>;
+    maxTokens?: number;
+  },
+  providerName: string,
+): ModelInfo {
+  return {
+    id: model.id,
+    name: model.name,
+    provider: toModelProvider(model.provider),
+    providerId: model.provider,
+    providerName,
+    supportsThinking: model.reasoning === true,
+    thinkLevels: model.reasoning ? toThinkLevels(model.thinkingLevelMap) : ['off'],
+    maxTokens: model.maxTokens ?? 0,
+    isAvailable: true,
+  };
 }
 
 export function createRealConfigService(cwd: string, agentDir?: string, modelRuntime?: ModelRuntime, settingsManager?: SettingsManager): ConfigService {
   const settings = settingsManager ?? SettingsManager.create(cwd, agentDir);
 
-  // pi 1.x: the runtime is async, the registry is only a synchronous read facade.
+  // pi 1.x: the runtime is async and owns catalog + credentials + availability.
   let runtimePromise: Promise<ModelRuntime> | undefined = modelRuntime
     ? Promise.resolve(modelRuntime)
     : undefined;
-  let registry: ModelRegistry | undefined;
-  async function getRegistry(): Promise<ModelRegistry> {
-    runtimePromise ??= getSharedModelRuntime();
-    const runtime = await runtimePromise;
-    return (registry ??= createModelRegistry(runtime));
+  async function getRuntime(): Promise<ModelRuntime> {
+    return (runtimePromise ??= getSharedModelRuntime());
   }
   const resolvedAgentDir = agentDir || getAgentDir();
 
-  // Determine which providers have usable auth (mutable after models.json writes)
-  let configuredProviders = getConfiguredModelProviders();
+  // `get()` and `listModels()` are called back-to-back by the composer and the
+  // settings page; a short memo keeps one availability pass per render instead
+  // of two, without hiding a login that just landed (the window is tiny).
+  const MODELS_MEMO_MS = 2_000;
+  let modelsMemo: { at: number; models: ModelInfo[] } | undefined;
+
+  async function availableModelInfos(): Promise<ModelInfo[]> {
+    const now = Date.now();
+    if (modelsMemo && now - modelsMemo.at < MODELS_MEMO_MS) return modelsMemo.models;
+
+    const runtime = await getRuntime();
+    let models;
+    try {
+      // Live availability: providers whose credentials resolve right now,
+      // built-in and models.json-defined alike.
+      models = await runtime.getAvailable();
+    } catch {
+      // An availability pass that throws leaves the last good snapshot; using
+      // it beats showing an empty picker.
+      models = runtime.getAvailableSnapshot();
+    }
+    const infos = models.map((model) =>
+      toModelInfo(model, runtime.getProvider(model.provider)?.name ?? model.provider),
+    );
+    modelsMemo = { at: now, models: infos };
+    return infos;
+  }
+
+  function invalidateModels(): void {
+    modelsMemo = undefined;
+  }
 
   return {
     async get(): Promise<Config> {
@@ -297,14 +319,14 @@ export function createRealConfigService(cwd: string, agentDir?: string, modelRun
       const projectSettings = settings.getProjectSettings();
       const merged = { ...globalSettings, ...projectSettings };
 
-      let rawDefaultModelId = settings.getDefaultModel() || merged.defaultModel || 'claude-sonnet-4';
+      let rawDefaultModelId = settings.getDefaultModel() || merged.defaultModel || '';
 
-      // Validate: only keep the default model if it's in models.json AND has configured auth
-      const configuredModelIds = getModelsJsonModelIds();
-      const availableModels = (await getRegistry()).getAvailable();
-      const validModels = availableModels.filter((m) => configuredModelIds.has(m.id));
-      if (rawDefaultModelId && !validModels.some((m) => m.id === rawDefaultModelId)) {
-        rawDefaultModelId = validModels[0]?.id ?? '';
+      // The default must be a model the current credentials can actually use.
+      // A saved value survives a logout only if another provider still serves
+      // the same id (selections accept both `id` and `provider/id`).
+      const models = await availableModelInfos();
+      if (!models.some((model) => matchesModelSelection(rawDefaultModelId, model))) {
+        rawDefaultModelId = models[0] ? preferredModelSelection(models, models[0]) : '';
       }
 
       return {
@@ -343,24 +365,14 @@ export function createRealConfigService(cwd: string, agentDir?: string, modelRun
       const patched = migrateModelsConfig();
       if (patched > 0) {
         console.log(`[config] Auto-migrated ${patched} model(s) to multimodal (image input).`);
+        await refreshAfterModelsChange(await getRuntime());
+        invalidateModels();
       }
-      // Refresh from disk so listModels and getModelsConfig stay in sync
-      const registry = await getRegistry();
-      configuredProviders = await refreshConfiguredProviders(registry);
-      // Only return models that are explicitly configured in models.json
-      const configuredModelIds = getModelsJsonModelIds();
-      const models = registry.getAll().filter((m) =>
-        configuredProviders.has(m.provider) && configuredModelIds.has(m.id),
-      );
-      return models.map((m) => ({
-        id: m.id,
-        name: m.name,
-        provider: toModelProvider(m.provider),
-        supportsThinking: m.reasoning,
-        thinkLevels: m.reasoning ? toThinkLevels(m.thinkingLevelMap) : ['off'],
-        maxTokens: m.maxTokens,
-        isAvailable: true,
-      }));
+      // Everything the current credentials can use: built-in providers signed
+      // in through auth.json / env vars, plus models.json providers whose key
+      // resolves. Not just the models.json list — that filter is what hid the
+      // SDK's whole built-in catalog before.
+      return availableModelInfos();
     },
 
     async listSkills(): Promise<Skill[]> {
@@ -449,7 +461,8 @@ export function createRealConfigService(cwd: string, agentDir?: string, modelRun
         }
       }
       writeModelsConfig(config);
-      configuredProviders = await refreshConfiguredProviders(await getRegistry());
+      await refreshAfterModelsChange(await getRuntime());
+      invalidateModels();
     },
 
     async upsertProvider(name: string, provider: ProviderEntry): Promise<void> {
@@ -460,7 +473,8 @@ export function createRealConfigService(cwd: string, agentDir?: string, modelRun
       }
       current.providers[name] = provider;
       writeModelsConfig(current);
-      configuredProviders = await refreshConfiguredProviders(await getRegistry());
+      await refreshAfterModelsChange(await getRuntime());
+      invalidateModels();
     },
 
     async listRemoteModels(input: { baseUrl: string; api: string; apiKey: string }) {
@@ -502,14 +516,16 @@ export function createRealConfigService(cwd: string, agentDir?: string, modelRun
       }
 
       writeModelsConfig(current);
-      configuredProviders = await refreshConfiguredProviders(await getRegistry());
+      await refreshAfterModelsChange(await getRuntime());
+      invalidateModels();
     },
 
     async deleteProvider(name: string): Promise<void> {
       const current = readModelsConfig();
       delete current.providers[name];
       writeModelsConfig(current);
-      configuredProviders = await refreshConfiguredProviders(await getRegistry());
+      await refreshAfterModelsChange(await getRuntime());
+      invalidateModels();
     },
 
     async addModel(providerName: string, model: ModelEntry): Promise<void> {
@@ -521,7 +537,8 @@ export function createRealConfigService(cwd: string, agentDir?: string, modelRun
       }
       provider.models.push(normalizeModelInput(model));
       writeModelsConfig(current);
-      configuredProviders = await refreshConfiguredProviders(await getRegistry());
+      await refreshAfterModelsChange(await getRuntime());
+      invalidateModels();
     },
 
     async deleteModel(providerName: string, modelId: string): Promise<void> {
@@ -530,7 +547,8 @@ export function createRealConfigService(cwd: string, agentDir?: string, modelRun
       if (!provider) throw new Error(`Provider "${providerName}" does not exist`);
       provider.models = provider.models.filter((m) => m.id !== modelId);
       writeModelsConfig(current);
-      configuredProviders = await refreshConfiguredProviders(await getRegistry());
+      await refreshAfterModelsChange(await getRuntime());
+      invalidateModels();
     },
 
     async updateModel(providerName: string, modelId: string, model: Partial<ModelEntry>): Promise<void> {
@@ -553,7 +571,8 @@ export function createRealConfigService(cwd: string, agentDir?: string, modelRun
 
       provider.models[idx] = { ...updated, id: nextId };
       writeModelsConfig(current);
-      configuredProviders = await refreshConfiguredProviders(await getRegistry());
+      await refreshAfterModelsChange(await getRuntime());
+      invalidateModels();
 
       // A rename changes the id downstream code uses to look the model up, so
       // keep the saved default-model selection pointing at it. Match on the id

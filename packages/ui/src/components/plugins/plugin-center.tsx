@@ -65,7 +65,7 @@ function PluginSettingsSection({ pluginId, settings }: { pluginId: string; setti
             <div key={setting.key} className="flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <div className="text-xs font-medium">{setting.label ?? setting.key}</div>
-                {setting.description ? <div className="text-[10px] text-muted-foreground">{setting.description}</div> : null}
+                {setting.description ? <div className="text-[0.625rem] text-muted-foreground">{setting.description}</div> : null}
               </div>
               {setting.type === 'boolean' ? (
                 <Switch
@@ -209,7 +209,7 @@ function InstalledItem({ plugin }: { plugin: PluginInfo }) {
           // A dev root beating the user's installed copy is the normal state of
           // plugin authoring, so this is a fact to state, not an error.
           <div
-            className="mt-1 flex items-start gap-1 text-[11px] leading-4 text-muted-foreground"
+            className="mt-1 flex items-start gap-1 text-[0.6875rem] leading-4 text-muted-foreground"
             data-shadowed-copy={plugin.id}
             title={plugin.shadowed.map((s) => `${s.rootPath} (v${s.version})`).join('\n')}
           >
@@ -229,7 +229,7 @@ function InstalledItem({ plugin }: { plugin: PluginInfo }) {
           </div>
         ) : null}
         {plugin.source === 'dev' ? (
-          <div className="mt-1 text-[11px] leading-4 text-muted-foreground">
+          <div className="mt-1 text-[0.6875rem] leading-4 text-muted-foreground">
             {t('当前加载的是仓库开发副本，插件中心不能替换或卸载它。测试客户的安装/更新路径请用')}
             <span className="font-mono"> pnpm dev:desktop</span>
             {language === 'en' ? '.' : '。'}
@@ -251,7 +251,7 @@ function InstalledItem({ plugin }: { plugin: PluginInfo }) {
         {plugin.permissions.length > 0 ? (
           <div className="mt-1.5 flex flex-wrap gap-1">
             {plugin.permissions.map((p) => (
-              <Badge key={p} variant="outline" className="text-[10px] font-normal">{p}</Badge>
+              <Badge key={p} variant="outline" className="text-[0.625rem] font-normal">{p}</Badge>
             ))}
           </div>
         ) : null}
@@ -442,13 +442,13 @@ function CatalogItem({ entry }: { entry: MarketEntry }) {
           <span className="text-sm font-medium">{entry.name}</span>
           <span className="text-xs text-muted-foreground">v{entry.version}</span>
           {outOfRange ? <Badge variant="destructive">{rangeNote}</Badge> : null}
-          {entry.size ? <span className="text-[10px] text-muted-foreground">{formatSize(entry.size)}</span> : null}
+          {entry.size ? <span className="text-[0.625rem] text-muted-foreground">{formatSize(entry.size)}</span> : null}
         </div>
         {entry.description ? <div className="mt-1 text-xs text-muted-foreground">{entry.description}</div> : null}
         {entry.permissions?.length ? (
           <div className="mt-1.5 flex flex-wrap gap-1">
             {entry.permissions.map((p) => (
-              <Badge key={p} variant="outline" className="text-[10px] font-normal">{p}</Badge>
+              <Badge key={p} variant="outline" className="text-[0.625rem] font-normal">{p}</Badge>
             ))}
           </div>
         ) : null}
@@ -518,7 +518,7 @@ function InstallButton({
               return (
                 <div key={p} className="flex items-start gap-2 rounded-md border p-2">
                   <div className="min-w-0">
-                    <div className="text-sm font-medium">{meta.label}<span className="ml-1.5 text-[10px] font-normal text-muted-foreground">{p}</span></div>
+                    <div className="text-sm font-medium">{meta.label}<span className="ml-1.5 text-[0.625rem] font-normal text-muted-foreground">{p}</span></div>
                     <div className="text-xs text-muted-foreground">{meta.description}</div>
                   </div>
                 </div>
@@ -609,7 +609,7 @@ export function PluginCenter() {
       {/* Which index the install/update buttons read. A stale local market is
           exactly how "更新" silently does nothing useful. */}
       {registryUrl ? (
-        <div className="-mt-1 mb-2 truncate text-[10px] text-muted-foreground" title={registryUrl} data-market-registry>
+        <div className="-mt-1 mb-2 truncate text-[0.625rem] text-muted-foreground" title={registryUrl} data-market-registry>
           {t('市场: {url}', { url: registryUrl })}
         </div>
       ) : null}
@@ -675,7 +675,7 @@ export function PluginCenter() {
       </section>
 
       {Object.keys(installPhases).length > 0 && (
-        <div className="mt-3 text-center text-[10px] text-muted-foreground">
+        <div className="mt-3 text-center text-[0.625rem] text-muted-foreground">
           {t('安装进行中:{names}', { names: Object.keys(installPhases).join(', ') })}
         </div>
       )}

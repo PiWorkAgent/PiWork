@@ -592,18 +592,18 @@ export function McpSettingsPage() {
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-sm font-medium">{server.name}</span>
-                    <Badge variant="secondary" className="text-[10px]">
+                    <Badge variant="secondary" className="text-[0.625rem]">
                       {server.type === 'http' ? 'HTTP' : 'stdio'}
                     </Badge>
                     {server.override && (
-                      <Badge variant="outline" className="text-[10px]">{t('项目覆盖')}</Badge>
+                      <Badge variant="outline" className="text-[0.625rem]">{t('项目覆盖')}</Badge>
                     )}
                     {status && (
                       <span
                         className={
                           status.state === 'ok'
-                            ? 'text-[11px] text-emerald-600 dark:text-emerald-400'
-                            : 'text-[11px] text-destructive'
+                            ? 'text-[0.6875rem] text-emerald-600 dark:text-emerald-400'
+                            : 'text-[0.6875rem] text-destructive'
                         }
                       >
                         {status.state === 'ok'

@@ -213,7 +213,7 @@ export function AboutSettingsPage() {
               <Button
                 variant="outline"
                 size="sm"
-                className="h-7 gap-1.5 text-[11px]"
+                className="h-7 gap-1.5 text-[0.6875rem]"
                 onClick={() => void checkQuery.refetch()}
                 disabled={checking}
               >
@@ -228,7 +228,7 @@ export function AboutSettingsPage() {
           </div>
 
           {result?.error && (
-            <div className="mt-3 flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-[11px] leading-relaxed text-destructive">
+            <div className="mt-3 flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-[0.6875rem] leading-relaxed text-destructive">
               <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
               <span className="break-words">{result.error}</span>
             </div>
@@ -240,11 +240,11 @@ export function AboutSettingsPage() {
                 <div className="min-w-0">
                   <div className="text-sm font-medium">
                     {result.latestVersion}
-                    <span className="ml-2 text-[11px] font-normal text-muted-foreground">
+                    <span className="ml-2 text-[0.6875rem] font-normal text-muted-foreground">
                       {t('当前版本 {version}', { version: result.currentVersion })}
                     </span>
                   </div>
-                  <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
+                  <p className="mt-0.5 text-[0.6875rem] leading-relaxed text-muted-foreground">
                     {downloadedForAsset
                       ? t('已下载 {name}。', { name: downloadedForAsset.fileName ?? '' })
                       : result.asset
@@ -256,7 +256,7 @@ export function AboutSettingsPage() {
                 </div>
 
                 {installing ? (
-                  <span className="flex shrink-0 items-center gap-1.5 text-[11px] text-muted-foreground">
+                  <span className="flex shrink-0 items-center gap-1.5 text-[0.6875rem] text-muted-foreground">
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
                     {t('正在退出并安装…')}
                   </span>
@@ -265,7 +265,7 @@ export function AboutSettingsPage() {
                     {result.asset && !downloadedForAsset && !downloadingForAsset && (
                       <Button
                         size="sm"
-                        className="h-7 gap-1.5 text-[11px]"
+                        className="h-7 gap-1.5 text-[0.6875rem]"
                         onClick={() => void startDownload(result.asset!)}
                       >
                         <Download className="h-3.5 w-3.5" />
@@ -278,7 +278,7 @@ export function AboutSettingsPage() {
                       <>
                         <Button
                           size="sm"
-                          className="h-7 gap-1.5 text-[11px]"
+                          className="h-7 gap-1.5 text-[0.6875rem]"
                           onClick={() => {
                             // Linux does not need the app gone first, so skip
                             // the confirm and hand the file straight over.
@@ -295,7 +295,7 @@ export function AboutSettingsPage() {
                         <Button
                           variant="outline"
                           size="sm"
-                          className="h-7 gap-1.5 text-[11px]"
+                          className="h-7 gap-1.5 text-[0.6875rem]"
                           onClick={() => void revealDownloaded(downloadedForAsset.filePath!)}
                         >
                           <FolderOpen className="h-3.5 w-3.5" />
@@ -309,7 +309,7 @@ export function AboutSettingsPage() {
 
               {downloadingForAsset && (
                 <div className="mt-3">
-                  <div className="flex items-center justify-between gap-3 text-[11px] text-muted-foreground">
+                  <div className="flex items-center justify-between gap-3 text-[0.6875rem] text-muted-foreground">
                     <span className="truncate">
                       {t('正在下载 {name}…', { name: downloadingForAsset.fileName ?? '' })}
                     </span>
@@ -342,7 +342,7 @@ export function AboutSettingsPage() {
                     />
                   </div>
                   <div className="mt-2 flex items-center justify-between">
-                    <span className="text-[11px] tabular-nums text-muted-foreground">
+                    <span className="text-[0.6875rem] tabular-nums text-muted-foreground">
                       {downloadingForAsset.total > 0
                         ? `${Math.round(
                             (downloadingForAsset.received / downloadingForAsset.total) * 100,
@@ -352,7 +352,7 @@ export function AboutSettingsPage() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-6 px-2 text-[11px] text-muted-foreground"
+                      className="h-6 px-2 text-[0.6875rem] text-muted-foreground"
                       onClick={() => void updateApi.cancel()}
                     >
                       {t('取消下载')}
@@ -362,21 +362,21 @@ export function AboutSettingsPage() {
               )}
 
               {downloadError && (
-                <p className="mt-2 text-[11px] leading-relaxed text-destructive">
+                <p className="mt-2 text-[0.6875rem] leading-relaxed text-destructive">
                   {t('下载失败：{message}', { message: downloadError })}
                 </p>
               )}
 
               {actionError && (
-                <p className="mt-2 text-[11px] leading-relaxed text-destructive">{actionError}</p>
+                <p className="mt-2 text-[0.6875rem] leading-relaxed text-destructive">{actionError}</p>
               )}
 
               {result.notes && (
                 <details className="mt-3">
-                  <summary className="cursor-pointer text-[11px] font-medium text-muted-foreground hover:text-foreground">
+                  <summary className="cursor-pointer text-[0.6875rem] font-medium text-muted-foreground hover:text-foreground">
                     {t('更新内容')}
                   </summary>
-                  <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap break-words rounded-md border bg-background p-2 text-[11px] leading-relaxed text-muted-foreground">
+                  <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap break-words rounded-md border bg-background p-2 text-[0.6875rem] leading-relaxed text-muted-foreground">
                     {result.notes}
                   </pre>
                 </details>
@@ -387,7 +387,7 @@ export function AboutSettingsPage() {
                   {t('在 GitHub 上查看')}
                 </LinkButton>
                 {result.publishedAt && (
-                  <span className="text-[11px] text-muted-foreground/70">
+                  <span className="text-[0.6875rem] text-muted-foreground/70">
                     {t('发布于 {date}', {
                       date: new Date(result.publishedAt).toLocaleDateString(),
                     })}
@@ -399,7 +399,7 @@ export function AboutSettingsPage() {
         </div>
       </div>
 
-      <p className="pb-4 pt-2 text-[11px] text-muted-foreground/70">
+      <p className="pb-4 pt-2 text-[0.6875rem] text-muted-foreground/70">
         {t('更新包会下载到本机的下载文件夹，安装前需要退出 PiWork。')}
       </p>
 
