@@ -176,4 +176,14 @@ export type PluginEvent =
   /** Surface an already-open host tab (no new tab, no params matching). */
   | { type: 'tab-focus'; pluginId: string; tabId: string; focus: boolean }
   /** Marketplace install progress phases. */
-  | { type: 'install-phase'; pluginId: string; phase: import('./market.js').InstallPhase };
+  | { type: 'install-phase'; pluginId: string; phase: import('./market.js').InstallPhase }
+  /**
+   * Bytes received during the download phase. Throttled by main; `total` is 0
+   * when the server sent no Content-Length.
+   */
+  | {
+      type: 'install-progress';
+      pluginId: string;
+      received: number;
+      total: number;
+    };

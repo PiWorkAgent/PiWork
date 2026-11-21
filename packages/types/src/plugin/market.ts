@@ -111,4 +111,13 @@ export interface InstallResult {
   ok: boolean;
   error?: string;
   pluginId?: string;
+  /** The user cancelled the download; surface it neutrally, not as a failure. */
+  canceled?: boolean;
+}
+
+/** Download progress for one plugin install. `total` is 0 when the server
+ *  sent no Content-Length. */
+export interface InstallProgress {
+  received: number;
+  total: number;
 }

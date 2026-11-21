@@ -381,6 +381,9 @@ const pluginBridge = (() => {
         ipcRenderer.invoke('pi:plugin:market:catalog', { force }),
       install: (pluginId: string): Promise<{ ok: boolean; error?: string }> =>
         ipcRenderer.invoke('pi:plugin:market:install', { pluginId }),
+      /** Abort an in-flight download (plugin center's 取消). */
+      cancel: (pluginId: string): Promise<{ ok: boolean; error?: string }> =>
+        ipcRenderer.invoke('pi:plugin:market:cancel-install', { pluginId }),
       uninstall: (pluginId: string, keepData?: boolean): Promise<{ ok: boolean; error?: string }> =>
         ipcRenderer.invoke('pi:plugin:uninstall', { pluginId, keepData }),
       rollback: (pluginId: string): Promise<{ ok: boolean; error?: string }> =>

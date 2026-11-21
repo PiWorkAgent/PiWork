@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Loader2, RefreshCw, Trash2, CircleAlert, CircleCheck, Settings2, ChevronDown, Puzzle, Undo2, Search, Info } from 'lucide-react';
-import type { MarketEntry, PluginInfo, PluginSettingInfo } from '@pi/types';
+import type { InstallProgress, MarketEntry, PluginInfo, PluginSettingInfo } from '@pi/types';
 import { describePermission, comparePluginVersions, MIN_SUPPORTED_API_VERSION, PLUGIN_PROTOCOL_VERSION } from '@pi/types';
 import { usePluginStore } from '@/stores/plugin-store';
 import { useI18n, type MessageKey } from '@/i18n';
@@ -12,6 +12,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
+import { formatBytes } from '@/lib/format';
 
 const SOURCE_LABEL: Record<string, MessageKey> = { dev: '开发', user: '已安装' };
 const STATE_LABEL: Record<string, MessageKey> = {
@@ -144,6 +145,8 @@ function InstalledItem({ plugin }: { plugin: PluginInfo }) {
   const rollbackPlugin = usePluginStore((s) => s.rollbackPlugin);
   const catalog = usePluginStore((s) => s.catalog);
   const installPhases = usePluginStore((s) => s.installPhases);
+  const installProgress = usePluginStore((s) => s.installProgress);
+  const cancelInstall = usePluginStore((s) => s.cancelInstall);
   const mutedPlugins = usePluginStore((s) => s.mutedPlugins);
   const setPluginMuted = usePluginStore((s) => s.setPluginMuted);
   const marketErrors = usePluginStore((s) => s.marketErrors);
@@ -288,9 +291,11 @@ function InstalledItem({ plugin }: { plugin: PluginInfo }) {
               <InstallButton
                 entry={marketEntry}
                 phase={installPhases[plugin.id]}
+                progress={installProgress[plugin.id]}
                 installed
                 updatable
                 onInstall={() => installPlugin(plugin.id)}
+                onCancel={() => void cancelInstall(plugin.id)}
               />
             ) : null}
             {broken && inMarket ? (
@@ -407,10 +412,13 @@ function InstalledItem({ plugin }: { plugin: PluginInfo }) {
 function CatalogItem({ entry }: { entry: MarketEntry }) {
   const { t } = useI18n();
   const installPhases = usePluginStore((s) => s.installPhases);
+  const installProgress = usePluginStore((s) => s.installProgress);
+  const cancelInstall = usePluginStore((s) => s.cancelInstall);
   const marketErrors = usePluginStore((s) => s.marketErrors);
   const installPlugin = usePluginStore((s) => s.installPlugin);
 
   const phase = installPhases[entry.id];
+  const progress = installProgress[entry.id];
   const error = marketErrors[entry.id];
 
   // Catalog-level apiVersion pre-check (stageInstall enforces the same range
@@ -459,35 +467,66 @@ function CatalogItem({ entry }: { entry: MarketEntry }) {
         ) : null}
       </div>
       {outOfRange ? null : (
-        <InstallButton entry={entry} phase={phase} installed={false} updatable={false} onInstall={() => installPlugin(entry.id)} />
+        <InstallButton
+          entry={entry}
+          phase={phase}
+          progress={progress}
+          installed={false}
+          updatable={false}
+          onInstall={() => installPlugin(entry.id)}
+          onCancel={() => void cancelInstall(entry.id)}
+        />
       )}
     </div>
   );
 }
 
 function InstallButton({
-  entry, phase, installed, updatable, onInstall,
+  entry, phase, progress, installed, updatable, onInstall, onCancel,
 }: {
   entry: MarketEntry;
   phase?: string;
+  progress?: InstallProgress;
   installed: boolean;
   updatable: boolean;
   onInstall: () => void;
+  onCancel?: () => void;
 }) {
   const { t } = useI18n();
   const [consentOpen, setConsentOpen] = useState(false);
 
   if (phase) {
+    // A slow link otherwise showed an indefinite "下载中" with no evidence of
+    // progress and no way out.
+    const percent =
+      progress && progress.total > 0
+        ? Math.min(100, Math.max(0, Math.floor((progress.received / progress.total) * 100)))
+        : null;
     return (
       <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
         <Loader2 className="h-3.5 w-3.5 animate-spin" />
-        {phase === 'downloading'
-          ? t('下载中')
-          : phase === 'verifying'
-            ? t('校验中')
-            : phase === 'installing'
-              ? t('安装中')
-              : t('启动中')}
+        <span>
+          {phase === 'downloading'
+            ? percent != null
+              ? t('下载中 {percent}%', { percent })
+              : progress && progress.received > 0
+                ? t('下载中 {size}', { size: formatBytes(progress.received) })
+                : t('下载中')
+            : phase === 'verifying'
+              ? t('校验中')
+              : phase === 'installing'
+                ? t('安装中')
+                : t('启动中')}
+        </span>
+        {phase === 'downloading' && onCancel ? (
+          <button
+            type="button"
+            onClick={onCancel}
+            className="ml-0.5 underline underline-offset-2 hover:text-foreground"
+          >
+            {t('取消')}
+          </button>
+        ) : null}
       </div>
     );
   }

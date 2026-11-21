@@ -75,6 +75,8 @@ export class PluginSystem {
   readonly capabilityHub: CapabilityHub;
   readonly marketplace: PluginMarketplace;
   private processes = new Map<string, PluginProcess>();
+  /** In-flight installs, so the plugin center's 取消 button can abort them. */
+  private installAborts = new Map<string, AbortController>();
   /** Active UI port pairs: `${pluginId}:${webContentsId}` — ensureUiPort is idempotent on these. */
   private uiPortKeys = new Map<string, boolean>();
   /**
@@ -669,7 +671,13 @@ export class PluginSystem {
   }
 
   /** Install (or update) a plugin from the marketplace catalog. */
-  async installFromMarket(pluginId: string, onPhase?: (phase: InstallPhase) => void): Promise<InstallResult> {
+  async installFromMarket(
+    pluginId: string,
+    onPhase?: (phase: InstallPhase) => void,
+    onProgress?: (received: number, total: number) => void,
+  ): Promise<InstallResult> {
+    const controller = new AbortController();
+    this.installAborts.set(pluginId, controller);
     try {
       const entry = await this.marketplace.getEntry(pluginId);
       if (!entry) return { ok: false, error: `"${pluginId}" not found in registry` };
@@ -681,7 +689,11 @@ export class PluginSystem {
       // Stop the running backend before replacing files.
       this.stopPlugin(pluginId);
 
-      const { stagedDir } = await this.marketplace.stageInstall(entry, (p) => onPhase?.(p));
+      const { stagedDir } = await this.marketplace.stageInstall(
+        entry,
+        (p) => onPhase?.(p),
+        { signal: controller.signal, onProgress },
+      );
       this.marketplace.commitInstall(stagedDir, pluginId);
 
       // Re-scan (picks up the new dir), then activate.
@@ -723,10 +735,54 @@ export class PluginSystem {
       this.onExtensionsChanged?.();
       return { ok: true, pluginId };
     } catch (err) {
+      // The running copy was stopped before the download; put it back so a
+      // failed or cancelled UPDATE does not leave an installed plugin dead
+      // until the next launch.
+      await this.restoreAfterFailedInstall(pluginId);
+      if (controller.signal.aborted) {
+        console.warn(`[plugins] install ${pluginId} canceled`);
+        this.emitEvent({ type: 'plugins-changed' });
+        return { ok: false, error: '已取消下载', pluginId, canceled: true };
+      }
       const message = err instanceof Error ? err.message : String(err);
       console.error(`[plugins] install ${pluginId} failed:`, message);
       this.emitEvent({ type: 'plugins-changed' });
       return { ok: false, error: message, pluginId };
+    } finally {
+      if (this.installAborts.get(pluginId) === controller) {
+        this.installAborts.delete(pluginId);
+      }
+    }
+  }
+
+  /** Abort an in-flight install/download (the plugin center's 取消 button). */
+  cancelInstall(pluginId: string): boolean {
+    const controller = this.installAborts.get(pluginId);
+    if (!controller) return false;
+    controller.abort();
+    return true;
+  }
+
+  /**
+   * An install stops the plugin's backend before downloading its replacement.
+   * On failure/cancel the old copy is still on disk: re-scan and start it
+   * again — unless a backend is already running (the failure happened before
+   * the stop, e.g. while fetching the catalog entry).
+   */
+  private async restoreAfterFailedInstall(pluginId: string): Promise<void> {
+    if (this.processes.has(pluginId)) return;
+    try {
+      this.registry.scan();
+      this.refreshRuntimeStates();
+      const plugin = this.registry.get(pluginId);
+      if (plugin?.enabled && plugin.state !== 'incompatible') {
+        await this.activateResolved(pluginId);
+      }
+    } catch (err) {
+      console.warn(
+        `[plugins] could not restore ${pluginId} after a failed install:`,
+        err instanceof Error ? err.message : err,
+      );
     }
   }
 
