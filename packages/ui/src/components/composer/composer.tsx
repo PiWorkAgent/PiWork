@@ -798,7 +798,12 @@ export function Composer() {
         const store = useComposerStore.getState();
         const slot = store.streams[sessionId];
         // A new run may have started in the meantime — never clear its blocks.
-        if (!slot || slot.isStreaming || slot.runId !== runId) return;
+        // Do NOT require `slot.runId === runId`: a plugin-triggered run can
+        // reach here with an empty store run id (the fallback below is local),
+        // and the old equality check then never cleared, so the live bubble
+        // survived and accumulated every later answer at the first run's
+        // timestamp — off-screen above the request cards that caused them.
+        if (!slot || slot.isStreaming) return;
         store.endSessionStream(sessionId, { clear: true });
       }, 0);
 

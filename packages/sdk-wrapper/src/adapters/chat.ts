@@ -409,6 +409,12 @@ async function promptPluginTurn(
     },
     { triggerTurn: true },
   );
+  // triggerTurn only guarantees the turn STARTED. `prompt()` waits for the
+  // run; without this, sendMessageStream returned early, the composer
+  // finalized an empty reply, and the still-running stream had no listener —
+  // its answer was left in a stale live bubble while the request card sat
+  // below it. Wait for the same settle a typed turn gives us.
+  await session.waitForIdle();
 }
 
 // ---------------------------------------------------------------------------

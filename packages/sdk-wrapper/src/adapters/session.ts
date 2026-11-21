@@ -889,14 +889,27 @@ export function createRealSessionService(): SessionService {
       // pair tool_call blocks with their results within a single message.
       const messages: Message[] = [];
       let msgIndex = 0;
+      /**
+       * True while the branch is inside one assistant turn. A plugin card
+       * (`custom_message`) or any other non-message entry ENDS the run: the
+       * next assistant entry is a new reply, not another block of the
+       * previous one. Without this, every plugin-triggered answer folded into
+       * the first assistant message — one transcript bubble carrying all of
+       * them at the first run's timestamp, sorted above the request cards.
+       */
+      let inAssistantRun = false;
 
-      for (const entry of messageEntries) {
+      for (const entry of branchEntries) {
+        if (!isSessionMessageEntry(entry)) {
+          inAssistantRun = false;
+          continue;
+        }
         const rawMsg = entry.message;
 
         // Merge toolResult into the preceding assistant message
         if (rawMsg.role === 'toolResult') {
           const lastMsg = messages[messages.length - 1];
-          if (lastMsg && lastMsg.role === 'assistant') {
+          if (inAssistantRun && lastMsg && lastMsg.role === 'assistant') {
             const toolBlocks = agentMessageToBlocks(rawMsg, cwd);
             if (toolBlocks.length > 0) {
               lastMsg.blocks.push(...toolBlocks);
@@ -918,7 +931,7 @@ export function createRealSessionService(): SessionService {
         // (SDK persists multi-turn assistant responses as separate entries)
         if (rawMsg.role === 'assistant') {
           const lastMsg = messages[messages.length - 1];
-          if (lastMsg && lastMsg.role === 'assistant') {
+          if (inAssistantRun && lastMsg && lastMsg.role === 'assistant') {
             const newBlocks = agentMessageToBlocks(rawMsg, cwd);
             lastMsg.blocks.push(...newBlocks);
             lastMsg.content = lastMsg.blocks
@@ -953,6 +966,9 @@ export function createRealSessionService(): SessionService {
             };
           }
           messages.push(message);
+          inAssistantRun = message.role === 'assistant';
+        } else {
+          inAssistantRun = false;
         }
       }
 

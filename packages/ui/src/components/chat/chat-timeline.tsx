@@ -304,6 +304,10 @@ export function ChatTimeline() {
   const [forking, setForking] = useState(false);
   // Stable timestamp captured once when streaming begins
   const streamingStartRef = useRef<string>('');
+  /** Which run `streamingStartRef` belongs to; a new run must get a new time. */
+  const streamingStartRunRef = useRef<string>('');
+  /** False→true marks a new run even when the store reports no run id. */
+  const wasStreamingRef = useRef(false);
   // Track last scrollToBottomTrigger to avoid duplicate scrolls when
   // chatItems.length also changes (the effect watches both values).
   const lastScrollTriggerRef = useRef(0);
@@ -378,13 +382,23 @@ export function ChatTimeline() {
     return () => api.removeListener('pi:plugin:message', onPluginMessage);
   }, [queryClient]);
 
-  // Stable timestamp: captured once at the start of streaming and kept until
-  // the live reply is gone, so the message does not change identity mid-swap.
-  if (isStreaming && !streamingStartRef.current) {
-    streamingStartRef.current = new Date().toISOString();
-  }
-  if (!isStreaming && streamingBlocks.length === 0) {
-    streamingStartRef.current = '';
+  // Stable timestamp: captured once per RUN and kept until the live reply is
+  // gone, so the message does not change identity mid-swap. Re-keyed on the
+  // run id: plugin-triggered runs can start before the previous run's live
+  // blocks clear, and reusing the old timestamp put the answer before the
+  // request card that started it (it sorted by createdAt, off-screen above).
+  if (isStreaming) {
+    if (!wasStreamingRef.current || streamingStartRunRef.current !== streamingRunId || !streamingStartRef.current) {
+      streamingStartRunRef.current = streamingRunId;
+      streamingStartRef.current = new Date().toISOString();
+    }
+    wasStreamingRef.current = true;
+  } else {
+    wasStreamingRef.current = false;
+    if (streamingBlocks.length === 0) {
+      streamingStartRef.current = '';
+      streamingStartRunRef.current = '';
+    }
   }
 
   // The live reply becomes a transcript message under the same id when the run
