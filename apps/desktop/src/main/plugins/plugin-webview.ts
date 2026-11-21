@@ -119,10 +119,6 @@ export class PluginWebViews {
     workspaceId?: string;
   }): { ok: boolean; error?: string } {
     const slotId = msg?.slotId || `${msg?.pluginId}:${msg?.panelId}`;
-    const view = this.views.get(slotId);
-    if (!view || view.webContents.isDestroyed()) {
-      return { ok: false, error: `no view for ${slotId}` };
-    }
     const payload = {
       panelId: msg?.panelId,
       tabId: msg?.tabId,
@@ -134,11 +130,25 @@ export class PluginWebViews {
       // workspace at this moment — and that stale value would stick.
       workspaceId: msg?.workspaceId,
     };
-    // Kept so a panel page that reloads (crash recovery, dev reload) gets the
-    // same report again. The shell only reports on mount, and a page reload is
-    // not a mount — without this the page comes back believing it serves no
-    // workspace, and every scoped panel silently falls back to "everything".
+    // The map is what a page that reloads (crash recovery, dev reload) is
+    // replayed from: the shell only reports on mount, and a reload is not a
+    // mount — without it the page comes back believing it serves no workspace,
+    // and every scoped panel silently falls back to "everything".
+    //
+    // Recorded BEFORE the view lookup on purpose. On a brand-new tab the shell
+    // raises `panel.mounted` first and attaches the slot second (two effects in
+    // declaration order), so the view does not exist yet. Dropping the report
+    // there left a freshly opened panel blank until something re-reported it —
+    // exactly the first file click after a fresh install. A packaged build runs
+    // effects once; dev's StrictMode runs them twice, which masked the race.
+    // `did-finish-load` replays this map, so the view created a moment later
+    // still learns its params and renders.
     this.mounted.set(slotId, payload);
+
+    const view = this.views.get(slotId);
+    if (!view || view.webContents.isDestroyed()) {
+      return { ok: true };
+    }
     view.webContents.send('pi:plugin:panel-mounted', payload);
     return { ok: true };
   }
