@@ -61,6 +61,10 @@ export function registerPluginSchemePrivileges(): void {
         secure: true,
         supportFetchAPI: true,
         corsEnabled: true,
+        // V8 code cache: every panel tab is a new renderer process, and the
+        // plugin UI bundle is large. Without this each tab re-parses and
+        // re-compiles the whole bundle instead of reusing the cached bytecode.
+        codeCache: true,
       },
     },
   ]);
