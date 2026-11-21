@@ -324,6 +324,8 @@ export const EN_MESSAGES = {
   '插件比客户端新({version},本机支持 {min}–{max}),请升级客户端':
     'Plugin is newer than the app ({version}; this app supports {min}–{max}) — update the app',
   下载中: 'Downloading',
+  '下载中 {percent}%': 'Downloading {percent}%',
+  '下载中 {size}': 'Downloading {size}',
   校验中: 'Verifying',
   安装中: 'Installing',
   更新: 'Update',

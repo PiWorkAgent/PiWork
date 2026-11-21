@@ -13,7 +13,8 @@ import { hostWindowOf } from './guard';
  *   pi:plugin:ensure-port     → { ok } + 'pi:plugin:port' port transfer
  *   pi:plugin:execute-command → { ok, result? }
  *   pi:plugin:market:catalog  → MarketEntry[] | { error }
- *   pi:plugin:market:install  → InstallResult (phases pushed as events)
+ *   pi:plugin:market:install  → InstallResult (phases/progress pushed as events)
+ *   pi:plugin:market:cancel-install → abort an in-flight install
  *   pi:plugin:uninstall       → InstallResult
  *   pi:plugin:set-enabled     → InstallResult
  *   pi:plugin:event           ← push channel (status/state/plugins-changed/install-phase)
@@ -163,7 +164,23 @@ export function registerPluginIpcHandlers(
     const pushPhase = (phase: InstallPhase) => {
       windows?.broadcast('pi:plugin:event', { type: 'install-phase', pluginId, phase });
     };
-    return system.installFromMarket(pluginId, pushPhase);
+    // Throttled in the marketplace layer; forwarded so the plugin center can
+    // show a percentage instead of an indefinite "下载中".
+    const pushProgress = (received: number, total: number) => {
+      windows?.broadcast('pi:plugin:event', {
+        type: 'install-progress',
+        pluginId,
+        received,
+        total,
+      });
+    };
+    return system.installFromMarket(pluginId, pushPhase, pushProgress);
+  });
+
+  ipcMain.handle('pi:plugin:market:cancel-install', (_event, payload: { pluginId?: string }) => {
+    const pluginId = payload?.pluginId;
+    if (!pluginId) return { ok: false, error: 'missing pluginId' };
+    return { ok: system.cancelInstall(pluginId) };
   });
 
   ipcMain.handle('pi:plugin:uninstall', async (_event, payload: { pluginId?: string; keepData?: boolean }) => {

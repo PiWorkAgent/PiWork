@@ -264,8 +264,24 @@ function AppContent() {
         // spinner). A real install sets its phase optimistically before any
         // event can arrive, so an event landing on a phaseless plugin is
         // stale by definition.
-        const { installPhases, setInstallPhase } = usePluginStore.getState();
-        if (installPhases[event.pluginId]) setInstallPhase(event.pluginId, event.phase);
+        const { installPhases, setInstallPhase, setInstallProgress } =
+          usePluginStore.getState();
+        if (installPhases[event.pluginId]) {
+          setInstallPhase(event.pluginId, event.phase);
+          // Bytes no longer describe the transfer once it is verifying/
+          // installing; a stale percentage would sit next to the spinner.
+          if (event.phase !== 'downloading') {
+            setInstallProgress(event.pluginId, undefined);
+          }
+        }
+      } else if (event.type === 'install-progress') {
+        const { installPhases, setInstallProgress } = usePluginStore.getState();
+        if (installPhases[event.pluginId]) {
+          setInstallProgress(event.pluginId, {
+            received: event.received,
+            total: event.total,
+          });
+        }
       }
     });
   }, [setPanelStatus, openPanel]);

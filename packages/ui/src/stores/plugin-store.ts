@@ -1,12 +1,21 @@
 import { create } from 'zustand';
-import type { InstallPhase, MarketEntry, PluginEvent, PluginInfo, PluginPanelStatus } from '@pi/types';
+import type {
+  InstallPhase,
+  InstallProgress,
+  MarketEntry,
+  PluginEvent,
+  PluginInfo,
+  PluginPanelStatus,
+} from '@pi/types';
 import { comparePluginVersions } from '@pi/types';
 import { t } from '@/i18n';
 
 /** Minimal typed view of the preload bridge (no-op on the web build). */
 export interface PluginMarketBridge {
   catalog: (force?: boolean) => Promise<{ ok: boolean; plugins: MarketEntry[]; error?: string; registryUrl?: string }>;
-  install: (pluginId: string) => Promise<{ ok: boolean; error?: string }>;
+  install: (pluginId: string) => Promise<{ ok: boolean; error?: string; canceled?: boolean }>;
+  /** Abort an in-flight download (plugin center's 取消). */
+  cancel: (pluginId: string) => Promise<{ ok: boolean; error?: string }>;
   uninstall: (pluginId: string, keepData?: boolean) => Promise<{ ok: boolean; error?: string }>;
   /** Put an upgraded plugin's previous version back. */
   rollback: (pluginId: string) => Promise<{ ok: boolean; error?: string }>;
@@ -56,6 +65,8 @@ export interface PluginStoreState {
   registryUrl?: string;
   /** Per-plugin install phase; undefined = idle. */
   installPhases: Record<string, InstallPhase>;
+  /** Download bytes for an install, so the row can show a percentage. */
+  installProgress: Record<string, InstallProgress>;
   marketErrors: Record<string, string | undefined>;
 
   loadPlugins: () => Promise<void>;
@@ -79,7 +90,10 @@ export interface PluginStoreState {
    */
   rollbackPlugin: (pluginId: string) => Promise<boolean>;
   setPluginEnabled: (pluginId: string, enabled: boolean) => Promise<boolean>;
+  /** Abort an in-flight download (plugin center's 取消). */
+  cancelInstall: (pluginId: string) => Promise<void>;
   setInstallPhase: (pluginId: string, phase: InstallPhase | undefined) => void;
+  setInstallProgress: (pluginId: string, progress: InstallProgress | undefined) => void;
   collectPluginContext: (message: string) => Promise<string[]>;
   loadPluginSettings: (pluginId: string) => Promise<Record<string, unknown>>;
   setPluginSetting: (pluginId: string, key: string, value: unknown) => Promise<boolean>;
@@ -137,6 +151,7 @@ export const usePluginStore = create<PluginStoreState>()((set, get) => ({
   catalog: [],
   catalogLoading: false,
   installPhases: {},
+  installProgress: {},
   marketErrors: {},
 
   loadPlugins: async () => {
@@ -224,17 +239,36 @@ export const usePluginStore = create<PluginStoreState>()((set, get) => ({
   installPlugin: async (pluginId) => {
     const bridge = getPluginBridge();
     if (!bridge) return false;
-    set((s) => ({
-      installPhases: { ...s.installPhases, [pluginId]: 'downloading' },
-      marketErrors: { ...s.marketErrors, [pluginId]: undefined },
-    }));
-    const res = await bridge.market.install(pluginId);
+    set((s) => {
+      const progress = { ...s.installProgress };
+      delete progress[pluginId];
+      return {
+        installPhases: { ...s.installPhases, [pluginId]: 'downloading' },
+        installProgress: progress,
+        marketErrors: { ...s.marketErrors, [pluginId]: undefined },
+      };
+    });
+    // The IPC reply normally carries every failure, but a missing handler or a
+    // dead main process rejects the call itself — clear the spinner either way.
+    let res: { ok: boolean; error?: string; canceled?: boolean };
+    try {
+      res = await bridge.market.install(pluginId);
+    } catch (err) {
+      res = { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
     set((s) => {
       const phases = { ...s.installPhases };
       delete phases[pluginId];
+      const progress = { ...s.installProgress };
+      delete progress[pluginId];
       return {
         installPhases: phases,
-        marketErrors: res.ok ? s.marketErrors : { ...s.marketErrors, [pluginId]: res.error },
+        installProgress: progress,
+        // A user cancel is not a failure — no red row for pressing 取消.
+        marketErrors:
+          res.ok || res.canceled
+            ? s.marketErrors
+            : { ...s.marketErrors, [pluginId]: res.error },
       };
     });
     if (res.ok) {
@@ -242,6 +276,16 @@ export const usePluginStore = create<PluginStoreState>()((set, get) => ({
       await get().loadCatalog(true);
     }
     return res.ok;
+  },
+
+  cancelInstall: async (pluginId) => {
+    const bridge = getPluginBridge();
+    if (!bridge) return;
+    try {
+      await bridge.market.cancel(pluginId);
+    } catch {
+      // The install promise reports the outcome; nothing to surface here.
+    }
   },
 
   uninstallPlugin: async (pluginId, keepData = true) => {
@@ -284,6 +328,14 @@ export const usePluginStore = create<PluginStoreState>()((set, get) => ({
       if (phase === undefined) delete phases[pluginId];
       else phases[pluginId] = phase;
       return { installPhases: phases };
+    }),
+
+  setInstallProgress: (pluginId, progress) =>
+    set((s) => {
+      const next = { ...s.installProgress };
+      if (progress === undefined) delete next[pluginId];
+      else next[pluginId] = progress;
+      return { installProgress: next };
     }),
 
   collectPluginContext: async (message) => {

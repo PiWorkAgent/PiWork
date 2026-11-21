@@ -32,6 +32,18 @@ function errorText(err: unknown): string {
 /** Abandon a download that has received nothing for this long. */
 const DOWNLOAD_IDLE_MS = 30_000;
 
+/** Push progress to the renderer at most this often (IPC + React churn). */
+const PROGRESS_THROTTLE_MS = 150;
+
+/** `total` is 0 when the server did not send Content-Length. */
+type DownloadProgressListener = (received: number, total: number) => void;
+
+export interface StageInstallOptions {
+  /** User cancel (the plugin center's 取消 button). */
+  signal?: AbortSignal;
+  onProgress?: DownloadProgressListener;
+}
+
 /**
  * A silent attempt is retried on a fresh connection. Three goes, because on a
  * congested link the failure is usually the edge the request landed on — a
@@ -176,7 +188,10 @@ export class PluginMarketplace {
     };
   }
 
-  private async fetchBytes(url: string): Promise<Buffer> {
+  private async fetchBytes(
+    url: string,
+    options: { signal?: AbortSignal; onProgress?: DownloadProgressListener } = {},
+  ): Promise<Buffer> {
     if (!/^https?:\/\//i.test(url)) {
       // Local file path (dev/test registries)
       if (!existsSync(url)) throw new Error(`registry file not found: ${url}`);
@@ -184,8 +199,10 @@ export class PluginMarketplace {
     }
     for (let attempt = 1; ; attempt++) {
       try {
-        return await this.fetchRemote(url);
+        return await this.fetchRemote(url, options);
       } catch (err) {
+        // A user cancel is final; retrying it would ignore the button.
+        if (options.signal?.aborted) throw err;
         // A dead socket is worth another go; a server's answer (HTTP 404,
         // integrity) is not — repeating it only makes the user wait longer for
         // the same failure.
@@ -197,47 +214,86 @@ export class PluginMarketplace {
   }
 
   /**
-   * Fetch with a stall guard.
+   * Fetch with a stall guard and byte progress.
    *
    * A release asset served through a redirect can land on an edge that accepts
    * the connection and then sends nothing; the socket stays ESTABLISHED and
-   * the OS may not give up for many minutes. Without a guard the install sits
-   * at "downloading" with no way forward but a restart. The timer is reset by
-   * every chunk, so a slow-but-alive transfer is never cut — only a silent one.
+   * the OS may not give up for many minutes. The timer is reset by every
+   * chunk, so a slow-but-alive transfer is never cut — only a silent one.
+   *
+   * The idle rejection is raced against the transport reads as well as
+   * aborting the request: `net.fetch` has been observed not to settle on a
+   * wedged socket even after its signal fires, and without the race the
+   * install promise (and the UI's "下载中") would never end.
    */
-  private async fetchRemote(url: string): Promise<Buffer> {
-    const controller = new AbortController();
+  private async fetchRemote(
+    url: string,
+    options: { signal?: AbortSignal; onProgress?: DownloadProgressListener } = {},
+  ): Promise<Buffer> {
+    const idleController = new AbortController();
+    const signal = options.signal
+      ? AbortSignal.any([idleController.signal, options.signal])
+      : idleController.signal;
     let stalled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let failIdle: ((err: Error) => void) | null = null;
+    const idle = new Promise<never>((_, reject) => {
+      failIdle = reject;
+    });
+    // The race below can leave an unhandled rejection when the download wins;
+    // an already-awaited promise never surfaces it, but keep it swallowable.
+    idle.catch(() => undefined);
+    const idleError = (): Error =>
+      new Error(
+        `下载超时：${url} 已 ${DOWNLOAD_IDLE_MS / 1000} 秒没有收到数据 — 请检查网络后重试`,
+      );
     const bump = (): void => {
       clearTimeout(timer);
       timer = setTimeout(() => {
         stalled = true;
-        controller.abort();
+        idleController.abort();
+        failIdle?.(idleError());
       }, DOWNLOAD_IDLE_MS);
     };
     bump();
+
+    let received = 0;
+    let lastEmit = 0;
+    const emit = (total: number, force = false): void => {
+      if (!options.onProgress) return;
+      const now = Date.now();
+      if (!force && now - lastEmit < PROGRESS_THROTTLE_MS) return;
+      lastEmit = now;
+      options.onProgress(received, total);
+    };
+
     try {
-      const res = await net.fetch(url, { signal: controller.signal });
+      const res = await Promise.race([net.fetch(url, { signal }), idle]);
       if (!res.ok) throw new Error(`fetch ${url} failed: HTTP ${res.status}`);
+      const header = Number(res.headers.get('content-length') ?? 0);
+      const total = Number.isFinite(header) && header > 0 ? header : 0;
       const reader = res.body?.getReader();
-      if (!reader) return Buffer.from(await res.arrayBuffer());
+      if (!reader) {
+        const buf = Buffer.from(await Promise.race([res.arrayBuffer(), idle]));
+        received = buf.byteLength;
+        emit(total || received, true);
+        return buf;
+      }
       const chunks: Uint8Array[] = [];
       for (;;) {
-        const { done, value } = await reader.read();
+        const { done, value } = await Promise.race([reader.read(), idle]);
         if (done) break;
         if (value) {
           chunks.push(value);
+          received += value.byteLength;
           bump();
+          emit(total);
         }
       }
+      emit(total || received, true);
       return Buffer.concat(chunks);
     } catch (err) {
-      if (stalled) {
-        throw new Error(
-          `download stalled: ${url} sent no data for ${DOWNLOAD_IDLE_MS / 1000}s — check the network and retry`,
-        );
-      }
+      if (stalled) throw idleError();
       throw err;
     } finally {
       clearTimeout(timer);
@@ -252,6 +308,7 @@ export class PluginMarketplace {
   async stageInstall(
     entry: MarketEntry,
     onPhase?: (phase: 'downloading' | 'verifying' | 'installing') => void,
+    options: StageInstallOptions = {},
   ): Promise<{ stagedDir: string; manifest: PluginManifest }> {
     // The catalog's id/version become filesystem path segments below
     // (`<id>-<version>` under `.staging`) BEFORE the zip's manifest is read,
@@ -269,7 +326,13 @@ export class PluginMarketplace {
     onPhase?.('downloading');
     // Entries come back from `catalog()` with absolute URLs — already resolved
     // against whichever index (hosted or bundled) actually served them.
-    const zipBytes = await this.fetchBytes(entry.url);
+    const zipBytes = await this.fetchBytes(entry.url, {
+      signal: options.signal,
+      onProgress: options.onProgress,
+    });
+    if (options.signal?.aborted) {
+      throw new DOMException('install canceled', 'AbortError');
+    }
 
     onPhase?.('verifying');
     // Always. A missing digest used to skip the check silently, so an index
