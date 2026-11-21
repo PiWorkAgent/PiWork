@@ -50,6 +50,11 @@ export class Notification {
   constructor() {}
   show() {}
 }
+/**
+ * Native panel views are never constructed in unit tests (they need Electron's
+ * runtime); the class only has to exist so modules importing it can load.
+ */
+export class WebContentsView {}
 export const net = {
   fetch: async () => {
     throw new Error('net.fetch is not available in unit tests');
