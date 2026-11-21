@@ -15,7 +15,9 @@ directories:
 electronDownload:
   mirror: https://npmmirror.com/mirrors/electron/
 
-# App icon (512x512 PNG). electron-builder auto-converts to .icns (macOS) and .ico (Windows).
+# App icon (1024×1024 PNG). electron-builder converts it per platform; the
+# Windows target overrides this with a full-bleed .ico (see `win.icon` below).
+# Regenerate with `node build/make-icon.mjs` (macOS) / `make-win-icon.mjs`.
 icon: build/icon.png
 
 # Let electron-builder auto-detect production dependencies from package.json.
@@ -133,6 +135,14 @@ dmg:
       name: 安装说明.txt
 
 win:
+  # The macOS artwork keeps Apple's 824/1024 content grid and a soft outer
+  # shadow. Windows neither masks nor crops icons, so the same PNG reads as an
+  # undersized taskbar pin, and its 16/24px entries (shrunk from 1024) turn to
+  # mush. This .ico is full-bleed and carries hand-rendered 16/24/32 entries
+  # (build/make-win-icon.mjs). electron-builder embeds it as-is (exe, NSIS
+  # installer and uninstaller).
+  icon: build/icon-win.ico
+
   # Bundle MinGit BusyBox (shell + git + coreutils) so Windows users
   # get bash-like command execution out of the box.
   #
