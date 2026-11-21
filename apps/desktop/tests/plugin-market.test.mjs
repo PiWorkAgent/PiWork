@@ -11,6 +11,7 @@
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { dirname, join, resolve } from 'node:path';
 import { comparePluginVersions } from '@pi/types';
 import {
   DEFAULT_REGISTRY_URL,
@@ -54,13 +55,16 @@ test('relative catalog entries resolve beside the index they came from', () => {
 });
 
 test('absolute URLs and paths pass through untouched', () => {
-  const index = '/home/me/market/index.json';
-  assert.equal(resolveEntryUrl(index, '/opt/zips/a.zip'), '/opt/zips/a.zip');
+  // Build the paths with `path`, not literals: `/opt/...` is not absolute on
+  // Windows, so the assertion would exercise the join branch instead.
+  const index = resolve('/home/me/market/index.json');
+  const outside = resolve('/opt/zips/a.zip');
+  assert.equal(resolveEntryUrl(index, outside), outside);
   assert.equal(
     resolveEntryUrl(index, 'https://cdn.example.com/a.zip'),
     'https://cdn.example.com/a.zip',
   );
-  assert.equal(resolveEntryUrl(index, 'a.zip'), '/home/me/market/a.zip');
+  assert.equal(resolveEntryUrl(index, 'a.zip'), join(dirname(index), 'a.zip'));
 });
 
 test('versions order like semver, not like strings', () => {

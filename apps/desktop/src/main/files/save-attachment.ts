@@ -22,7 +22,16 @@ export const ATTACHMENTS_DIR = '.piwork/attachments';
 const WINDOWS_RESERVED_RE = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$/i;
 
 function safeName(raw: unknown): string {
-  const base = basename(String(raw ?? '').replace(/\\/g, '/')).trim();
+  // Split separators by hand instead of `basename`: on Windows, basename also
+  // strips an `X:` prefix as a drive, so `a:b.pdf` became `b.pdf` there and
+  // `a_b.pdf` on POSIX — a name that worked on one platform and silently
+  // changed on another.
+  const base =
+    String(raw ?? '')
+      .replace(/\\/g, '/')
+      .split('/')
+      .pop()
+      ?.trim() ?? '';
   const cleaned = base.replace(/[\u0000-\u001f\u007f]/g, '').trim();
   // Characters Win32 rejects outright (`< > : " / \ | ? *`), plus the trailing
   // dots/spaces Win32 silently normalizes — leaving those in makes `writeFile`
