@@ -772,10 +772,11 @@ export function Composer() {
 
       queryClient.setQueryData(['session', sessionId], (old: any) => {
         if (!old) return old;
-        return {
-          ...old,
-          messages: [...(old.messages || []), assistantMsg],
-        };
+        const existing = old.messages || [];
+        // Idempotent: a settle-window refetch may already have promoted this
+        // run under the same id.
+        if (existing.some((m: { id?: string }) => m.id === runId)) return old;
+        return { ...old, messages: [...existing, assistantMsg] };
       });
 
       // Release the live blocks now that the promoted message is in the cache.
@@ -789,14 +790,18 @@ export function Composer() {
         store.endSessionStream(sessionId, { clear: true });
       }, 0);
 
-      // A branched send changed the shape of the conversation: the turns after
-      // the branch point left the active path, and the new turn carries entry
-      // ids and versions the optimistic bubble cannot know. Re-read once, now
-      // that the run is over, so the version control is real rather than
-      // appearing only after the next reload.
-      if (variables.branchFrom || variables.replayTurn) {
-        void queryClient.invalidateQueries({ queryKey: ['session', sessionId] });
-      }
+      // Re-read the finished turn from disk — always.
+      //
+      // Two writers meet at this settle: this promotion, and a plugin's
+      // completion card (its own custom entry, which triggers a session
+      // refetch through `pi:plugin:message`). If that refetch lands before
+      // the promotion, the cache already holds the persisted reply — with its
+      // file block — and appending the promoted copy repeats the tail. The
+      // disk is the transcript's source of truth, so one read now replaces
+      // any such transient duplication with exactly what was persisted. It
+      // also makes entry ids and version controls real without waiting for
+      // the next conversation switch.
+      void queryClient.invalidateQueries({ queryKey: ['session', sessionId] });
 
       // A run that finished while you were looking elsewhere should announce
       // itself; the session list's spinner disappears at the same moment.

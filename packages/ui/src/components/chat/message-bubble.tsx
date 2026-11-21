@@ -27,6 +27,12 @@ interface MessageBubbleProps {
   toolTimings?: Map<string, number>;
   /** Tool-call ids whose plugin card body is folded away (see suppressedToolCards). */
   suppressedCards?: ReadonlySet<string>;
+  /**
+   * Files a rendered plugin card already covers (see pluginCoveredPaths). The
+   * host's generic file card is skipped for these — the plugin card is the
+   * richer of the two and describes the same file.
+   */
+  suppressedFilePaths?: ReadonlySet<string>;
   /** Callback when user clicks "Edit" on a user message */
   onEditMessage?: (message: Message) => void;
   /** Callback when user confirms inline edit with new content */
@@ -57,6 +63,7 @@ function renderBlocks(
   isStreaming: boolean,
   toolTimings: Map<string, number>,
   suppressedCards?: ReadonlySet<string>,
+  suppressedFilePaths?: ReadonlySet<string>,
 ) {
   const resultMap = new Map<string, ToolResultBlock>();
   const elements: React.ReactNode[] = [];
@@ -65,7 +72,11 @@ function renderBlocks(
   // their position in the data, so the display is consistent between
   // streaming, cached, and loaded-from-disk views.
   const nonFileBlocks = blocks.filter((b) => b.type !== 'file');
-  const fileBlocks = blocks.filter((b) => b.type === 'file');
+  const fileBlocks = blocks.filter((b) => {
+    if (b.type !== 'file') return false;
+    const path = (b as FileBlock).workspacePath;
+    return !(path && suppressedFilePaths?.has(path));
+  });
 
   // First pass: collect all tool_results by toolCallId
   for (const block of nonFileBlocks) {
@@ -198,6 +209,7 @@ function MessageBubbleImpl({
   messageTiming,
   toolTimings = EMPTY_TOOL_TIMINGS,
   suppressedCards,
+  suppressedFilePaths,
   onEditMessage,
   onConfirmEdit,
   onCancelEdit,
@@ -353,7 +365,13 @@ function MessageBubbleImpl({
           </div>
         ) : (
           <div className="flex flex-col">
-            {renderBlocks(message.blocks, !!isStreaming, toolTimings, suppressedCards)}
+            {renderBlocks(
+              message.blocks,
+              !!isStreaming,
+              toolTimings,
+              suppressedCards,
+              suppressedFilePaths,
+            )}
           </div>
         )}
         {/* Action row: timestamp + metrics + hover buttons */}

@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { stripAppendedContext } from '@/lib/quote-helpers';
 import { activateSession } from '@/lib/window-actions';
 import { suppressedToolCards } from '@/lib/tool-card-collapse';
+import { pluginCoveredPaths } from '@/lib/plugin-card-paths';
 import { MessageBubble } from './message-bubble';
 import { PluginMessageBubble } from './plugin-message-bubble';
 import { ChatMinimap } from './chat-minimap';
@@ -348,6 +349,12 @@ export function ChatTimeline() {
   // and folds once when the turn is persisted, instead of a card vanishing
   // under the user each time the next batch starts.
   const suppressedCards = useMemo(() => suppressedToolCards(storedMessages), [storedMessages]);
+
+  // Files a rendered plugin card already presents. The assistant message's
+  // generic file card is redundant for those (the office completion card shows
+  // the same document with a per-run summary and an open action); it stays for
+  // files nothing else surfaces.
+  const pluginFilePaths = useMemo(() => pluginCoveredPaths(storedMessages), [storedMessages]);
 
   // Plugin messages arrive outside the agent stream (a background event, a
   // panel action). Main persists them as session entries and sends a signal;
@@ -823,6 +830,7 @@ export function ChatTimeline() {
                 messageTiming={isLast && isAssistant ? messageTiming ?? undefined : undefined}
                 toolTimings={isLast && isAssistant ? toolTimings : EMPTY_TOOL_TIMINGS}
                 suppressedCards={suppressedCards}
+                suppressedFilePaths={pluginFilePaths}
                 onEditMessage={handleEditMessage}
                 onConfirmEdit={handleConfirmEdit}
                 onCancelEdit={handleCancelEdit}
