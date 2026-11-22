@@ -551,6 +551,17 @@ export const EN_MESSAGES = {
   没有进行中的会话: 'No active session',
   '从左侧选择一个会话，或新建一个开始。':
     'Select a session from the sidebar, or create a new one to get started.',
+  还没有工作区: 'No workspace yet',
+  选择一个工作区以查看文件: 'Select a workspace to view files',
+  '选一个文件夹作为工作区，PiWork 会在里面创建会话、读写文件。':
+    'Pick a folder as your workspace. PiWork creates sessions and reads and writes files inside it.',
+  '打开文件夹…': 'Open folder…',
+  '正在打开…': 'Opening…',
+  创建工作区失败: 'Could not create the workspace',
+  '正在准备会话…': 'Preparing session…',
+  '正在为当前工作区创建会话。': 'Creating a session in the current workspace.',
+  无法创建会话: 'Could not create a session',
+  '请检查后端连接后重试。': 'Check the backend connection and try again.',
   未知文件: 'Unknown file',
   '[二进制内容，无法预览]': '[Binary content — cannot preview]',
   用系统应用打开: 'Open with system app',

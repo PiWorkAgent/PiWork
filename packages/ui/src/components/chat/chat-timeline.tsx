@@ -16,7 +16,7 @@ import { pluginCoveredPaths } from '@/lib/plugin-card-paths';
 import { MessageBubble } from './message-bubble';
 import { PluginMessageBubble } from './plugin-message-bubble';
 import { ChatMinimap } from './chat-minimap';
-import { EmptyChat } from './empty-chat';
+import { EmptyChat, FailedSessionChat, NoWorkspaceChat, PreparingSessionChat } from './empty-chat';
 import { StreamingIndicator } from './streaming-indicator';
 import { LoadingSpinner } from '@/components/common/loading-spinner';
 import { ErrorState } from '@/components/common/error-state';
@@ -270,6 +270,10 @@ export function ChatTimeline() {
   const sdk = useSDK();
   const queryClient = useQueryClient();
   const activeSessionId = useUIStore((s) => s.activeSessionId);
+  const activeWorkspaceId = useUIStore((s) => s.activeWorkspaceId);
+  const sessionBootstrapStatus = useUIStore((s) => s.sessionBootstrapStatus);
+  const sessionBootstrapError = useUIStore((s) => s.sessionBootstrapError);
+  const retrySessionBootstrap = useUIStore((s) => s.retrySessionBootstrap);
   const mutedPlugins = usePluginStore((s) => s.mutedPlugins);
   const isStreaming = useComposerStore((s) => s.isStreaming);
   const streamingRunId = useComposerStore((s) => s.streamingRunId);
@@ -319,6 +323,17 @@ export function ChatTimeline() {
   const autoReadPendingRef = useRef(false);
   const lastAutoReadRef = useRef<string | null>(null);
   const streamSessionRef = useRef<string | null>(null);
+
+  // A window with no workspace has to tell "there are none yet" apart from
+  // "one is about to be selected" — the first frame otherwise flashes the
+  // open-folder CTA at users who do have workspaces (the dropdown's fallback
+  // effect selects the first one a beat later). Shares the dropdown's query
+  // key, so it normally reads an already-warm cache.
+  const { data: workspaces, isLoading: workspacesLoading } = useQuery({
+    queryKey: ['workspaces'],
+    queryFn: () => sdk.workspace.list(),
+    enabled: !activeWorkspaceId,
+  });
 
   const { data: session, isLoading, error, refetch } = useQuery({
     queryKey: ['session', activeSessionId],
@@ -766,7 +781,20 @@ export function ChatTimeline() {
   };
 
   // ----- Error loading session -----
-  if (!activeSessionId) return <EmptyChat />;
+  // No session is not one state but three: without a workspace there is
+  // nothing sessions can be created in (pi ties every session to its cwd);
+  // with one, the composer's ensure-session effect is either still working or
+  // has failed. The old one-size-fits-all copy pointed at an empty sidebar.
+  if (!activeSessionId) {
+    if (!activeWorkspaceId) {
+      const hasWorkspaces = (workspaces?.length ?? 0) > 0;
+      return workspacesLoading || hasWorkspaces ? <PreparingSessionChat /> : <NoWorkspaceChat />;
+    }
+    if (sessionBootstrapStatus === 'failed') {
+      return <FailedSessionChat error={sessionBootstrapError} onRetry={retrySessionBootstrap} />;
+    }
+    return <PreparingSessionChat />;
+  }
   if (isLoading) return <LoadingSpinner message="Loading messages..." />;
   if (error) return <ErrorState description="Failed to load messages" onRetry={() => refetch()} />;
   if (!session) return <EmptyChat />;

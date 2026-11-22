@@ -226,7 +226,7 @@ export function FileTree() {
   if (!activeWorkspaceId) {
     return (
       <div className="flex flex-1 items-center justify-center p-4 text-sm text-muted-foreground">
-        Select a workspace to view files
+        {t('选择一个工作区以查看文件')}
       </div>
     );
   }

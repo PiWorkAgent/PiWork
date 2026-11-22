@@ -1,43 +1,23 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { useCreateWorkspace } from '@/hooks/use-create-workspace';
 import { useSDK } from '@/hooks/use-sdk';
-import { useUIStore } from '@/stores/ui-store';
-import { switchWorkspace } from '@/lib/switch-workspace';
 import { useI18n } from '@/i18n';
 import { Button } from '@/components/ui/button';
-import type { Workspace } from '@pi/types';
-
-function folderBasename(filePath: string): string {
-  return filePath.split(/[/\\]/).filter(Boolean).pop() || filePath;
-}
 
 export function WorkspaceCreateButton() {
   const { t } = useI18n();
   const sdk = useSDK();
-  const queryClient = useQueryClient();
-  const setActiveWorkspace = useUIStore((s) => s.setActiveWorkspace);
+  const createMutation = useCreateWorkspace();
 
-  const createMutation = useMutation({
-    mutationFn: async () => {
-      const path = await sdk.transport.request('system.selectDirectory');
-      if (!path || typeof path !== 'string') return null;
-      const name = folderBasename(path);
-      return sdk.workspace.create(name, path);
-    },
-    onSuccess: (result) => {
-      if (result) {
-        // Immediately insert into cache so dropdown shows it
-        queryClient.setQueryData<Workspace[]>(['workspaces'], (old) =>
-          old ? [result, ...old] : [result],
-        );
-        // Auto-select the new workspace (with its conversation prepared, so the
-        // centre panel doesn't flash through a session-less frame).
-        switchWorkspace(sdk, queryClient, result.id);
-        // Background refresh for eventual consistency
-        queryClient.invalidateQueries({ queryKey: ['workspaces'] });
-      }
-    },
+  // Shares the dropdown's query key. With no workspaces the dropdown itself
+  // becomes the "choose the first folder" action, so a second + beside it
+  // would just do the same thing twice.
+  const { data: workspaces, isLoading } = useQuery({
+    queryKey: ['workspaces'],
+    queryFn: () => sdk.workspace.list(),
   });
+  if (isLoading || !workspaces || workspaces.length === 0) return null;
 
   return (
     <Button
