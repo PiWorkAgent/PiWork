@@ -84,6 +84,20 @@ interface UIState {
    */
   disabledSkills: string[];
   connectionStatus: ConnectionStatus;
+  /**
+   * State of the "always keep a conversation ready" bootstrap (the composer's
+   * ensure-session effect). The centre panel renders it while the window has a
+   * workspace but no session — that gap is either a normal async moment or a
+   * real failure, and the empty state has to say which.
+   */
+  sessionBootstrapStatus: 'idle' | 'creating' | 'failed';
+  sessionBootstrapError: string | null;
+  /** Bumped by the empty state's retry button; the bootstrap effect depends on it. */
+  sessionBootstrapAttempt: number;
+  beginSessionBootstrap: () => void;
+  failSessionBootstrap: (message: string) => void;
+  finishSessionBootstrap: () => void;
+  retrySessionBootstrap: () => void;
 
   setActiveWorkspace: (id: string | null) => void;
   /**
@@ -129,17 +143,32 @@ export const useUIStore = create<UIState>()(
       compactMode: false,
       disabledSkills: [],
       connectionStatus: 'connecting',
+      sessionBootstrapStatus: 'idle',
+      sessionBootstrapError: null,
+      sessionBootstrapAttempt: 0,
 
       // A workspace change also switches which saved panel layout applies —
       // layouts belong to the folder, not to the window.
       setActiveWorkspace: (id) => {
         useComposerStore.getState().enterSession(null);
-        set({ activeWorkspaceId: id, activeSessionId: null });
+        // A failure belonged to the OLD workspace; the bootstrap re-runs for
+        // the new one, so clear it instead of showing a stale error there.
+        set({
+          activeWorkspaceId: id,
+          activeSessionId: null,
+          sessionBootstrapStatus: 'idle',
+          sessionBootstrapError: null,
+        });
         setPanelLayoutWorkspace(id);
       },
       setActiveWorkspaceAndSession: (workspaceId, sessionId) => {
         useComposerStore.getState().enterSession(sessionId);
-        set({ activeWorkspaceId: workspaceId, activeSessionId: sessionId });
+        set({
+          activeWorkspaceId: workspaceId,
+          activeSessionId: sessionId,
+          sessionBootstrapStatus: 'idle',
+          sessionBootstrapError: null,
+        });
         setPanelLayoutWorkspace(workspaceId);
       },
       // Switch the panel store's session slice BEFORE the session id reaches
@@ -155,7 +184,7 @@ export const useUIStore = create<UIState>()(
         // step, so the first frame of the new conversation is idle unless it
         // has a run of its own.
         useComposerStore.getState().enterSession(id);
-        set({ activeSessionId: id });
+        set({ activeSessionId: id, sessionBootstrapStatus: 'idle', sessionBootstrapError: null });
       },
       // File selection routes through the filePreview contribution chain:
       // a plugin panel claims the extension — there is no host fallback
@@ -189,6 +218,18 @@ export const useUIStore = create<UIState>()(
             : [...s.disabledSkills, skillId],
         })),
       setConnectionStatus: (status) => set({ connectionStatus: status }),
+      beginSessionBootstrap: () =>
+        set({ sessionBootstrapStatus: 'creating', sessionBootstrapError: null }),
+      failSessionBootstrap: (message) =>
+        set({ sessionBootstrapStatus: 'failed', sessionBootstrapError: message }),
+      finishSessionBootstrap: () =>
+        set({ sessionBootstrapStatus: 'idle', sessionBootstrapError: null }),
+      retrySessionBootstrap: () =>
+        set((s) => ({
+          sessionBootstrapAttempt: s.sessionBootstrapAttempt + 1,
+          sessionBootstrapStatus: 'creating',
+          sessionBootstrapError: null,
+        })),
     }),
     {
       name: 'pi-ui-storage',

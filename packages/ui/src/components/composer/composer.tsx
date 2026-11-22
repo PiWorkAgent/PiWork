@@ -84,6 +84,10 @@ export function Composer() {
   const setActivePreviewFile = useUIStore((s) => s.setActivePreviewFile);
   const activePreviewFilePath = useUIStore((s) => s.activePreviewFilePath);
   const setActiveSession = useUIStore((s) => s.setActiveSession);
+  const sessionBootstrapAttempt = useUIStore((s) => s.sessionBootstrapAttempt);
+  const beginSessionBootstrap = useUIStore((s) => s.beginSessionBootstrap);
+  const failSessionBootstrap = useUIStore((s) => s.failSessionBootstrap);
+  const finishSessionBootstrap = useUIStore((s) => s.finishSessionBootstrap);
 
   // Always keep a conversation ready. A workspace with no selected session is
   // exactly the state you land in when the app opens or you switch workspaces —
@@ -92,13 +96,26 @@ export function Composer() {
   // Creating a session is free: no file is written and it stays out of the
   // session list until the first message, so this produces no clutter even if
   // you switch workspaces without typing.
+  //
+  // The status is published to the UI store because ChatTimeline shows it: the
+  // centre panel is in "workspace but no session" state for as long as this
+  // takes, and it must say "preparing" or "could not create", not the generic
+  // "no active session" copy.
   useEffect(() => {
-    // A window that opens on a workspace but no session (Cmd+N) reaches this
-    // effect before the transport connects; creating there fails with
-    // "IPC transport not connected" and is silently swallowed. Wait for the
-    // connection — the status flip re-runs the effect.
-    if (activeSessionId || !activeWorkspaceId || connectionStatus !== 'connected') return;
+    if (activeSessionId || !activeWorkspaceId) return;
+    // Hold the "preparing" state while the transport comes up. A window that
+    // opens on a workspace but no session (Cmd+N) reaches this effect before
+    // the transport connects; creating here would fail with "IPC transport not
+    // connected" and then show a failure the reconnect is about to fix.
+    // A transport that has already given up is a real failure, though — say so
+    // rather than holding "preparing" forever.
+    if (connectionStatus !== 'connected') {
+      if (connectionStatus === 'disconnected') failSessionBootstrap(t('连接失败'));
+      else beginSessionBootstrap();
+      return;
+    }
     let cancelled = false;
+    beginSessionBootstrap();
     (async () => {
       try {
         const created = await sdk.session.create(activeWorkspaceId);
@@ -110,15 +127,34 @@ export function Composer() {
         if (cancelled) return;
         queryClient.setQueryData(['session', created.id], session);
         queryClient.invalidateQueries({ queryKey: ['sessions'] });
-        void activateSession(created.id);
-      } catch {
-        // Leave the empty state in place; the next workspace change retries.
+        const activated = await activateSession(created.id);
+        if (cancelled) return;
+        if (activated) finishSessionBootstrap();
+        else failSessionBootstrap(t('无法创建会话'));
+      } catch (err) {
+        // Surface it: a silent failure left the centre panel saying "no active
+        // session" with no way to tell whether anything was happening.
+        if (!cancelled) {
+          failSessionBootstrap(err instanceof Error ? err.message : t('无法创建会话'));
+        }
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [activeSessionId, activeWorkspaceId, connectionStatus, sdk, queryClient, setActiveSession]);
+  }, [
+    activeSessionId,
+    activeWorkspaceId,
+    connectionStatus,
+    sessionBootstrapAttempt,
+    sdk,
+    queryClient,
+    setActiveSession,
+    beginSessionBootstrap,
+    failSessionBootstrap,
+    finishSessionBootstrap,
+    t,
+  ]);
 
   const {
     value,
