@@ -462,7 +462,7 @@ export class BrowserManager {
       // Re-top: if a panel view joined the tree after this engine view, it
       // would paint over the engine — re-append to keep the engine last.
       this.retop(t);
-      void this.setDeviceMetrics(bounds.width, bounds.height, t).catch(() => {});
+      void this.setDeviceMetrics(bounds.width, t).catch(() => {});
     } catch (err) {
       console.warn('[BrowserManager] showTab failed:', err);
     }
@@ -488,7 +488,7 @@ export class BrowserManager {
       t.lastBounds = { ...bounds };
       t.lastShownAt = Date.now();
       this.retop(t);
-      void this.setDeviceMetrics(bounds.width, bounds.height, t).catch(() => {});
+      void this.setDeviceMetrics(bounds.width, t).catch(() => {});
     } catch (err) {
       console.warn('[BrowserManager] showSecondary failed:', err);
     }
@@ -514,7 +514,7 @@ export class BrowserManager {
       t.lastShownAt = Date.now();
       this.activeTabId = t.id;
       this.retop(t);
-      void this.setDeviceMetrics(bounds.width, bounds.height, t).catch(() => {});
+      void this.setDeviceMetrics(bounds.width, t).catch(() => {});
     } catch (err) {
       console.warn('[BrowserManager] showTabTile failed:', err);
     }
@@ -1065,7 +1065,6 @@ export class BrowserManager {
   private async computeAutoZoom(t: BrowserTab): Promise<void> {
     // Re-entrant guard — prevent concurrent zoom computations on one tab
     if (t.zoomComputing) return;
-    const wc = t.wc;
     if (!t.alive()) return;
     t.zoomComputing = true;
     try {
@@ -3388,7 +3387,7 @@ export class BrowserManager {
   /** ——— Viewport ——— */
 
   /** Override the webview's device metrics to match the panel width. */
-  async setDeviceMetrics(width: number, height: number, tabIdOrTab?: string | BrowserTab): Promise<void> {
+  async setDeviceMetrics(width: number, tabIdOrTab?: string | BrowserTab): Promise<void> {
     const t = tabIdOrTab instanceof BrowserTab ? tabIdOrTab : this.requireTab(tabIdOrTab);
     t.webviewWidth = width;
     if (width <= 0 || width === t.metricsWidth) return;

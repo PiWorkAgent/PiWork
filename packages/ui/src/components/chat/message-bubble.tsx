@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, memo } from 'react';
-import type { Message, ContentBlock, ThinkingBlock as ThinkingBlockType, ToolCallBlock, ToolResultBlock, ImageBlock, FileBlock, AssistantMessage, TokenUsage, ContextUsageInfo, MessageTiming } from '@pi/types';
+import type { Message, ContentBlock, ThinkingBlock as ThinkingBlockType, ToolCallBlock, ToolResultBlock, ImageBlock, FileBlock, MessageTiming } from '@pi/types';
 import { cn } from '@/lib/utils';
+import { formatDuration } from '@/lib/format';
 import { Clock, Zap, FileText, Copy, Pencil, Check, ChevronLeft, ChevronRight, RotateCcw, GitBranch } from 'lucide-react';
 import { ThinkingBlock } from './thinking-block';
 import { useI18n } from '@/i18n';
@@ -22,7 +23,6 @@ import { useComposerStore } from '@/stores/composer-store';
 interface MessageBubbleProps {
   message: Message;
   isStreaming?: boolean;
-  contextUsage?: ContextUsageInfo;
   messageTiming?: MessageTiming;
   toolTimings?: Map<string, number>;
   /** Tool-call ids whose plugin card body is folded away (see suppressedToolCards). */
@@ -138,11 +138,6 @@ function renderBlocks(
   return elements;
 }
 
-function formatDuration(ms: number): string {
-  if (ms < 1000) return `${ms}ms`;
-  return `${(ms / 1000).toFixed(1)}s`;
-}
-
 /** Per-message metrics bar shown at bottom of assistant messages */
 function MessageMetrics({ timing, contentLength, isStreaming }: { timing?: MessageTiming; contentLength: number; isStreaming: boolean }) {
   const { t } = useI18n();
@@ -205,7 +200,6 @@ const EMPTY_TOOL_TIMINGS = new Map<string, number>();
 function MessageBubbleImpl({
   message,
   isStreaming,
-  contextUsage,
   messageTiming,
   toolTimings = EMPTY_TOOL_TIMINGS,
   suppressedCards,
@@ -236,9 +230,6 @@ function MessageBubbleImpl({
   const showMessageMetrics = isAssistant && (hasBlocks || message.content);
 
   // For user messages with blocks, split text blocks from media blocks
-  const userTextBlocks = isUser && hasBlocks
-    ? message.blocks.filter((b) => b.type === 'text')
-    : [];
   const userMediaBlocks = isUser && hasBlocks
     ? message.blocks.filter((b) => b.type === 'image' || b.type === 'file')
     : [];
@@ -442,6 +433,7 @@ function MessageBubbleImpl({
                     size="icon-sm"
                     className="h-5 w-5 text-muted-foreground/50 hover:text-foreground"
                     onClick={handleCopy}
+                    aria-label={copied ? t('已复制！') : t('复制')}
                   >
                     {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
                   </Button>
@@ -499,6 +491,7 @@ function MessageBubbleImpl({
                       className="h-5 w-5 text-muted-foreground/50 hover:text-foreground"
                       onClick={handleStartEdit}
                       disabled={branchSwitchingDisabled}
+                      aria-label={t('编辑')}
                     >
                       <Pencil className="h-3 w-3" />
                     </Button>

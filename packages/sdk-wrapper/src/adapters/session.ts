@@ -84,9 +84,6 @@ function extractTextFromContent(content: unknown): string {
   return JSON.stringify(content);
 }
 
-// === Conversion: AgentMessage → ContentBlock[] ===
-type AgentMessage = SessionMessageEntry['message'];
-
 /**
  * Strip the attachment sections that the composer appends to the prompt before
  * sending, so the displayed user content matches what the user actually typed.
@@ -317,7 +314,7 @@ export function agentMessageToBlocks(msg: any, cwd?: string): ContentBlock[] {
       // Strip quote sections FIRST (before attachment sections) because
       // the quote header "File: name | ..." followed by a code fence
       // would otherwise be matched by the attachment text-file regex.
-      const { content: afterQuotes, quotes } = stripQuoteSections(msg.content, cwd);
+      const { content: afterQuotes } = stripQuoteSections(msg.content, cwd);
       const { content, files } = stripAttachmentSections(afterQuotes, cwd);
       blocks.push({
         id: `b-${msg.timestamp || Date.now()}`,
@@ -338,7 +335,7 @@ export function agentMessageToBlocks(msg: any, cwd?: string): ContentBlock[] {
     } else if (Array.isArray(msg.content)) {
       for (const c of msg.content as any[]) {
         if (c.type === 'text') {
-          const { content: afterQuotes, quotes } = stripQuoteSections(c.text || '', cwd);
+          const { content: afterQuotes } = stripQuoteSections(c.text || '', cwd);
           const { content, files } = stripAttachmentSections(afterQuotes, cwd);
           blocks.push({
             id: `b-text-${msg.timestamp || Date.now()}-${blocks.length}`,
@@ -634,13 +631,6 @@ function pluginMessageDataOf(entry: SessionEntry): PluginMessageData | undefined
       ? (entry as { data?: PluginMessageData }).data
       : (entry as { details?: PluginMessageData }).details;
   return data && typeof data.id === 'string' ? data : undefined;
-}
-
-/** A pi custom/custom_message entry carrying a plugin-originated message. */
-function isPluginMessageEntry(
-  e: SessionEntry,
-): e is SessionEntry & { type: 'custom' | 'custom_message' } {
-  return pluginMessageDataOf(e) !== undefined;
 }
 
 /**

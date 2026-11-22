@@ -62,10 +62,8 @@ function asScope(value: unknown): McpScope {
 
 export function registerMcpIpc(store: McpConfigStore, hooks: McpIpcHooks): void {
   const statuses: StatusMap = new Map();
-  let lastWorkspace: string | undefined;
 
   const list = (workspacePath: string | undefined): McpListResult => {
-    if (workspacePath) lastWorkspace = workspacePath;
     const result = store.list(workspacePath);
     return { ...result, statuses: [...statuses.values()] };
   };

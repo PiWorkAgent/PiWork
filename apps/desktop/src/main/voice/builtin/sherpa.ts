@@ -11,7 +11,6 @@
 import { createRequire } from 'node:module';
 import { join, sep } from 'node:path';
 import type { BuiltinModelId } from '@pi/types';
-import { BUILTIN_MODELS } from './models.js';
 
 export interface SherpaResult {
   text?: string;

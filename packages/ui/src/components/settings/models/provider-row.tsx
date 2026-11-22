@@ -44,7 +44,6 @@ function MethodBadges({ row }: { row: ProviderAuthRow }) {
  */
 export function ProviderRow({ row, onConnect, onLogout }: ProviderRowProps) {
   const { t } = useI18n();
-  const oauth = row.methods.find((method) => method.type === 'oauth');
   const canConnect = row.methods.some((method) => method.interactive);
 
   const statusText =

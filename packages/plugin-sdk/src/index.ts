@@ -411,8 +411,6 @@ export function plugin(handlers: PluginHandlers): void {
   const pending = new Map<string, { resolve: (v: unknown) => void; reject: (e: Error) => void }>();
   /** Panels already warned about having no onPanelMounted handler — warn once each. */
   const mountWarned = new Set<string>();
-  /** Set when the panel port closes — the closest thing to "the window is gone". */
-  let portClosed = false;
   let probeSeq = 0;
   const pendingProbes = new Map<string, () => void>();
 
@@ -864,7 +862,6 @@ export function plugin(handlers: PluginHandlers): void {
         // attributed. A renderer reload transfers a fresh port for the SAME
         // panel; the old port's close event retires exactly that binding.
         panelPort = port;
-        portClosed = false;
         port.on('message', (e) => {
           // Learn the port's panel from its first tagged message — the
           // ui-port transfer carries no panel id.
@@ -891,7 +888,6 @@ export function plugin(handlers: PluginHandlers): void {
             if (panelPort === port) {
               const last = [...panelPorts.values()].at(-1);
               panelPort = last ? [...last].at(-1) ?? null : null;
-              if (!panelPort) portClosed = true;
             }
           });
         } catch {

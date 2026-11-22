@@ -79,10 +79,8 @@ export function Composer() {
   const activeWorkspaceId = useUIStore((s) => s.activeWorkspaceId);
   const connectionStatus = useUIStore((s) => s.connectionStatus);
   const compactMode = useUIStore((s) => s.compactMode);
-  const setCompactMode = useUIStore((s) => s.setCompactMode);
   const disabledSkills = useUIStore((s) => s.disabledSkills);
   const setActivePreviewFile = useUIStore((s) => s.setActivePreviewFile);
-  const activePreviewFilePath = useUIStore((s) => s.activePreviewFilePath);
   const setActiveSession = useUIStore((s) => s.setActiveSession);
   const sessionBootstrapAttempt = useUIStore((s) => s.sessionBootstrapAttempt);
   const beginSessionBootstrap = useUIStore((s) => s.beginSessionBootstrap);
@@ -674,7 +672,7 @@ export function Composer() {
 
       // -- rAF batching for block updates --
       // Without batching, every streaming chunk triggers:
-      //   setStreamingBlocks → useMemo → makeStreamingMessage
+      //   updateSessionStream → useMemo → makeStreamingMessage
       //   → ReactMarkdown re-parse → DOM rebuild.
       // Fast models (e.g. Qwen-VL Max) can fire 50+ chunks/second, causing
       // visible flickering. rAF coalesces all chunks in a 16ms frame into

@@ -5,7 +5,7 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-/** File extensions that can be edited as text in the Monaco editor */
+/** File extensions that can be edited as text in the file viewer */
 const TEXT_EDITABLE_EXTENSIONS = new Set([
   '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs',
   '.css', '.scss', '.less',

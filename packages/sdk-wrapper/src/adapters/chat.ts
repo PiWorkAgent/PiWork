@@ -2,7 +2,7 @@ import * as path from 'path';
 import { randomUUID } from 'node:crypto';
 import { statSync, readFileSync, existsSync } from 'node:fs';
 import type { ChatService, SendMessageParams, StreamChunk } from '../services/chat.js';
-import type { Message, AssistantMessage, ContentBlock, ToolResultBlock, TokenUsage, ContextUsageInfo, SessionStatsInfo, MessageTiming, AgentContextConfig, AgentContextReloadResult, AgentToolInfo, AppendSegmentInfo, ContextFileInfo, ContextFileScope, PromptFileInfo, GlobalContextFile, GlobalContextInfo, ModelCapabilities, PluginMessageData, PluginMessagePatch } from '@pi/types';
+import type { Message, AssistantMessage, ToolResultBlock, TokenUsage, AgentContextConfig, AgentContextReloadResult, AgentToolInfo, AppendSegmentInfo, ContextFileInfo, ContextFileScope, PromptFileInfo, GlobalContextFile, GlobalContextInfo, ModelCapabilities, PluginMessageData, PluginMessagePatch } from '@pi/types';
 import { PLUGIN_MESSAGE_CUSTOM_TYPE, SESSION_LEAF_CUSTOM_TYPE } from '@pi/types';
 import { ASK_TOOL_NAME, TODO_TOOL_NAME } from '@pi/types';
 import { createAgentSession, SessionManager, DefaultResourceLoader, getAgentDir, SettingsManager, formatSkillsForPrompt, createMcpExtension, createToolSearchExtension } from '@earendil-works/pi-coding-agent';
@@ -1096,7 +1096,6 @@ export function createRealChatService(
     // The standing capability note is chosen from the conversation's model;
     // with no live session we cannot know it, so the neutral variant is shown.
     const capabilities = live?.model ? modelCapabilitiesOf(live.model) : undefined;
-    const hostSegments = buildHostAppendSystemPrompt(pluginDocsBlock, toolNames, capabilities);
     const loader = new DefaultResourceLoader({
       cwd: resolvedWorkspace,
       agentDir: getAgentDir(),

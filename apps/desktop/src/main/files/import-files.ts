@@ -1,6 +1,7 @@
 import { existsSync, lstatSync, promises as fsp, realpathSync, statSync } from 'node:fs';
-import { basename, extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { basename, extname, isAbsolute, join, resolve } from 'node:path';
 import type { ImportedEntry, ImportFilesResult, SkippedImport } from '@pi/types';
+import { isWithin } from './path-utils.js';
 
 /**
  * Copy the paths a user dropped onto the file tree into the workspace root.
@@ -13,12 +14,6 @@ import type { ImportedEntry, ImportFilesResult, SkippedImport } from '@pi/types'
  * Copy, never move; never overwrite — a colliding name becomes
  * `name (1).ext`, then `name (2).ext`, and so on.
  */
-
-/** True when `child` is `parent` or lives under it (either separator). */
-function isWithin(child: string, parent: string): boolean {
-  const rel = relative(parent, child);
-  return rel === '' || (!rel.startsWith(`..${sep}`) && rel !== '..' && !isAbsolute(rel));
-}
 
 /**
  * First free `name`, `name (n).ext` … in `dir`.
