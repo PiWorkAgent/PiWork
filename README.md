@@ -21,39 +21,64 @@
 
 ## 主要功能
 
-- **AI 对话** — 多轮对话式编程助手，支持思考过程展示和工具调用可视化
-- **工作空间管理** — 创建和管理多个项目工作空间
-- **会话管理** — 支持会话分组、历史查看和会话切换
-- **文件浏览** — 内置文件树，支持文件浏览和管理
-- **文档预览** — 支持代码高亮、Markdown、PDF、Office 文档（.docx/.xlsx/.pptx）等格式预览
-- **模型配置** — 支持多种 AI 提供商和模型选择，可自定义思考等级
-- **斜杠命令** — 支持 `/help`、`/clear`、`/compact`、`/model`、`/config` 等命令
-- **版本更新** — 设置 → 关于里检查更新，发现新版本时下载当前平台的安装包
-- **浏览器自动化** — 支持通过 AI 驱动浏览器进行网页操作，实现自动化浏览与交互
+- **对话代理** — 流式输出、思考过程展示、工具调用卡片；提问 / 任务清单等交互卡片；
+  权限审批（默认 / 全权限两种模式）；编辑重发、重新生成、会话分支切换
+- **工作区与会话** — 一个工作区对应一个文件夹；会话按工作区管理；
+  多窗口独立工作，同一会话只在一个窗口打开，避免互相抢占
+- **上下文** — AGENTS.md / CLAUDE.md 常驻指令、SYSTEM.md 替换或追加、技能开关、
+  上下文占用与分段开销可视化
+- **面板与预览** — 文件树；左右面板 + 标签 + 分栏；插件面板以原生视图嵌入工作区
+- **模型** — 多服务商、多模型；内置服务商支持 OAuth / API Key 登录；思考等级切换；
+  可从服务商拉取可用模型列表
+- **MCP** — 配置 MCP 服务器（全局 / 项目级），工具自动进入会话
+- **插件** — 插件中心与市场，安装 / 更新 / 回滚，权限确认；
+  开发模式可直接加载插件源码
+- **语音** — 录音转写输入；回复朗读；内置 sherpa-onnx 模型，也可接自定义服务商
+- **外观与语言** — 浅色 / 深色 / 跟随系统；界面字号缩放；中文 / English
+- **其他** — 斜杠命令、用量与耗时统计、应用内检查更新并下载安装包
 
 ## 功能演示
 
-### AI 编程助手
+> 以下素材基于 0.4.x 版本界面录制。
 
-![Demo](./assets/demo.gif)
+### 对话与文件
+
+在示例项目里提问，agent 读取代码、修复 bug、补测试并运行，随后在右侧打开说明文档。
+
+![对话与文件](./assets/demo.gif)
+
+### 文档处理
+
+预览 Markdown 与 CSV，再让 agent 按 SKU 汇总生成 xlsx 报表，右栏直接查看表格。
+
+![文档处理](./assets/docs.gif)
 
 ### 浏览器自动化
 
-![Browser Automation](./assets/chrome.gif)
+一句话让 agent 打开网页、点击链接并汇报结果。
+
+![浏览器自动化](./assets/browser.gif)
+
+### 设置与主题
+
+深浅色、字号和中英文界面即时切换。
+
+![设置与主题](./assets/settings.gif)
 
 ## 技术栈
 
 | 类别 | 技术 |
 |------|------|
-| **桌面框架** | Electron + electron-vite |
+| **桌面框架** | Electron 45 + electron-vite |
 | **前端框架** | React 19 + TypeScript |
-| **Web 构建** | Vite |
-| **UI** | Tailwind CSS + shadcn/ui (Radix) |
-| **状态管理** | Zustand + TanStack React Query |
-| **代码编辑器** | Monaco Editor |
-| **文档预览** | PDF.js、Mammoth (.docx)、SheetJS (.xlsx) |
-| **构建工具** | Turborepo + pnpm workspace |
+| **构建工具** | Vite 8 + Turborepo + pnpm workspace |
+| **UI** | Tailwind CSS 4 + Radix UI（shadcn 风格组件） |
+| **状态管理** | Zustand + TanStack Query |
+| **文档解析** | `adm-zip` + 自研 OOXML 解析（docx / xlsx / pptx）；PDF 与富文本预览由「文件查看器」插件渲染 |
+| **语音** | sherpa-onnx（内置识别 / 合成）+ 自定义服务商 |
 | **AI SDK** | @earendil-works/pi-coding-agent |
+| **插件 SDK** | @weiqun789/plugin-sdk |
+| **打包发布** | electron-builder + GitHub Actions（四平台） |
 
 ## 架构概览
 
@@ -78,6 +103,7 @@ PiWork/
 │   ├── ui/               # 共享 UI 组件库 (布局、聊天、预览等)
 │   └── plugin-sdk/       # 插件后端 SDK（npm: @weiqun789/plugin-sdk）
 ├── scripts/              # setup / dev-plugin / fetch-market 等辅助脚本
+├── templates/            # 插件脚手架（连接器插件）
 ├── pnpm-workspace.yaml
 └── turbo.json
 ```
@@ -86,7 +112,7 @@ PiWork/
 
 ## 环境要求
 
-- Node.js >= 20.19.0
+- Node.js >= 22.18.0（与根 `package.json` 的 `engines` 一致）
 - pnpm >= 9.0.0
 
 ## 快速开始
@@ -111,6 +137,8 @@ PI_DEV_PLUGINS=/path/to/PiWork-Plugin-Browser pnpm dev:desktop:plugins
 ## 插件
 
 插件是**独立的发布单位**，不放在本仓库。每个插件一个 GitHub 仓库，发布产物是 GitHub Release 里的 `zip + index.json`；一个 registry 仓库把所有插件的 release 聚合成客户端读取的市场索引。
+
+Web 端不加载插件：浏览器自动化、文档预览等能力需要桌面端。
 
 | 仓库 | 作用 |
 | --- | --- |
@@ -185,11 +213,11 @@ PI_DEV_PLUGINS=/path/to/PiWork-Plugin-Browser pnpm dev:desktop:plugins   # 在 P
 
 ```bash
 # 1. 改版本号（只改文件，不自动打 tag）
-cd apps/desktop && npm version 0.2.0 --no-git-tag-version && cd ../..
+cd apps/desktop && npm version 0.4.6 --no-git-tag-version && cd ../..
 
 # 2. 提交，打与版本号一致的 tag，push（tag 会触发发布）
-git commit -am "发布 0.2.0"
-git tag v0.2.0
+git commit -am "发布 0.4.6"
+git tag v0.4.6
 git push origin HEAD --tags
 ```
 

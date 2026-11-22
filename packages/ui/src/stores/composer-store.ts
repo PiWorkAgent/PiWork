@@ -98,7 +98,6 @@ function snapshotVisible(state: ComposerState): SessionStream {
 
 interface ComposerState {
   value: string;
-  cursorPosition: number;
   isStreaming: boolean;
   /** Identity of the visible conversation's live reply (see `SessionStream.runId`). */
   streamingRunId: string;
@@ -108,7 +107,6 @@ interface ComposerState {
   slashQuery: string;
   mentionQuery: string;
   pendingAttachments: Attachment[];
-  uploadProgress: Record<string, number>;
   streamingBlocks: ContentBlock[];
   streamingUsage: TokenUsage | null;
   contextUsage: ContextUsageInfo | null;
@@ -173,8 +171,6 @@ interface ComposerState {
   removeQueuedItem: (type: 'steer' | 'followUp', index: number) => void;
 
   setValue: (value: string) => void;
-  setCursorPosition: (pos: number) => void;
-  setIsStreaming: (streaming: boolean) => void;
   setIsDragging: (dragging: boolean) => void;
   setShowSlashMenu: (show: boolean, query?: string) => void;
   setShowMentionMenu: (show: boolean, query?: string) => void;
@@ -182,19 +178,7 @@ interface ComposerState {
   /** Update an attachment with base64 file data after FileReader completes */
   updateAttachmentData: (id: string, data: string) => void;
   removeAttachment: (id: string) => void;
-  setUploadProgress: (id: string, progress: number) => void;
-  clearUploadProgress: () => void;
   clearAttachments: () => void;
-  addStreamingBlock: (block: ContentBlock) => void;
-  updateStreamingBlock: (id: string, updates: Partial<ContentBlock>) => void;
-  clearStreamingBlocks: () => void;
-  setStreamingBlocks: (blocks: ContentBlock[]) => void;
-  setStreamingUsage: (usage: TokenUsage | null) => void;
-  setContextUsage: (ctx: ContextUsageInfo | null) => void;
-  setSessionStats: (stats: SessionStatsInfo | null) => void;
-  setMessageTiming: (timing: MessageTiming | null) => void;
-  setToolTiming: (timing: ToolTiming) => void;
-  setStreamError: (error: string | null) => void;
   setTriggerSend: (
     content: string,
     pluginMessage?: PluginMessageData,
@@ -212,14 +196,11 @@ interface ComposerState {
   setEditingContent: (content: string) => void;
   /** Exit edit mode: clear composer and editing state */
   clearEditingMessage: () => void;
-  /** Update the steering and follow-up queue state */
-  setQueues: (steering: string[], followUp: string[]) => void;
   reset: () => void;
 }
 
 export const useComposerStore = create<ComposerState>((set, get) => ({
   value: '',
-  cursorPosition: 0,
   isStreaming: false,
   streamingRunId: '',
   isDragging: false,
@@ -228,7 +209,6 @@ export const useComposerStore = create<ComposerState>((set, get) => ({
   slashQuery: '',
   mentionQuery: '',
   pendingAttachments: [],
-  uploadProgress: {},
   streamingBlocks: [],
   streamingUsage: null,
   contextUsage: null,
@@ -316,22 +296,6 @@ export const useComposerStore = create<ComposerState>((set, get) => ({
       return { sessionPending };
     }),
 
-  setSessionStats: (sessionStats) => {
-    const id = get().activeStreamSessionId;
-    if (id) get().updateSessionStream(id, { sessionStats });
-    else set({ sessionStats });
-  },
-  setMessageTiming: (messageTiming) => {
-    const id = get().activeStreamSessionId;
-    if (id) get().updateSessionStream(id, { messageTiming });
-    else set({ messageTiming });
-  },
-  setToolTiming: (timing) => {
-    const id = get().activeStreamSessionId;
-    if (id) get().setSessionToolTiming(id, timing);
-    else set((s) => ({ toolTimings: new Map(s.toolTimings).set(timing.toolCallId, timing.durationMs) }));
-  },
-
   setValue: (value) =>
     set((state) => ({
       value,
@@ -339,12 +303,6 @@ export const useComposerStore = create<ComposerState>((set, get) => ({
         ? { ...state.drafts, [state.activeStreamSessionId]: value }
         : state.drafts,
     })),
-  setCursorPosition: (cursorPosition) => set({ cursorPosition }),
-  setIsStreaming: (isStreaming) => {
-    const id = get().activeStreamSessionId;
-    if (id) get().updateSessionStream(id, { isStreaming });
-    else set({ isStreaming });
-  },
   setIsDragging: (isDragging) => set({ isDragging }),
   setShowSlashMenu: (show, query = '') => set({ showSlashMenu: show, slashQuery: query }),
   setShowMentionMenu: (show, query = '') => set({ showMentionMenu: show, mentionQuery: query }),
@@ -358,59 +316,7 @@ export const useComposerStore = create<ComposerState>((set, get) => ({
     })),
   removeAttachment: (id) =>
     set((s) => ({ pendingAttachments: s.pendingAttachments.filter((a) => a.id !== id) })),
-  setUploadProgress: (id, progress) =>
-    set((s) => ({ uploadProgress: { ...s.uploadProgress, [id]: progress } })),
-  clearUploadProgress: () => set({ uploadProgress: {} }),
-  clearAttachments: () => set({ pendingAttachments: [], uploadProgress: {} }),
-  addStreamingBlock: (block) =>
-    set((s) => {
-      const blocks = s.streamingBlocks;
-      const idx = blocks.findIndex((b) => b.id === block.id);
-      const updated = idx >= 0 ? [...blocks] : [...blocks, block];
-      if (idx >= 0) updated[idx] = block;
-      const id = s.activeStreamSessionId;
-      if (!id) return { streamingBlocks: updated };
-      const streams = { ...s.streams, [id]: { ...(s.streams[id] ?? snapshotVisible(s)), blocks: updated } };
-      return { streams, streamingBlocks: updated };
-    }),
-  updateStreamingBlock: (id, updates) =>
-    set((s) => {
-      const streamingBlocks = s.streamingBlocks.map((b) =>
-        b.id === id ? { ...b, ...updates } : b,
-      );
-      const active = s.activeStreamSessionId;
-      if (!active) return { streamingBlocks };
-      const streams = {
-        ...s.streams,
-        [active]: { ...(s.streams[active] ?? snapshotVisible(s)), blocks: streamingBlocks },
-      };
-      return { streams, streamingBlocks };
-    }),
-  clearStreamingBlocks: () => {
-    const id = get().activeStreamSessionId;
-    if (id) get().updateSessionStream(id, { blocks: [] });
-    else set({ streamingBlocks: [] });
-  },
-  setStreamingBlocks: (blocks) => {
-    const id = get().activeStreamSessionId;
-    if (id) get().updateSessionStream(id, { blocks });
-    else set({ streamingBlocks: blocks });
-  },
-  setStreamingUsage: (usage) => {
-    const id = get().activeStreamSessionId;
-    if (id) get().updateSessionStream(id, { usage });
-    else set({ streamingUsage: usage });
-  },
-  setContextUsage: (contextUsage) => {
-    const id = get().activeStreamSessionId;
-    if (id) get().updateSessionStream(id, { contextUsage });
-    else set({ contextUsage });
-  },
-  setStreamError: (streamError) => {
-    const id = get().activeStreamSessionId;
-    if (id) get().updateSessionStream(id, { streamError });
-    else set({ streamError });
-  },
+  clearAttachments: () => set({ pendingAttachments: [] }),
   setTriggerSend: (content, pluginMessage, options) =>
     set((s) => {
       const triggered = {
@@ -442,11 +348,6 @@ export const useComposerStore = create<ComposerState>((set, get) => ({
   setEditingContent: (content) => set({ editingContent: content }),
   clearEditingMessage: () =>
     set({ pendingBranch: null, editingMessageId: null, editingContent: '' }),
-  setQueues: (steering, followUp) => {
-    const id = get().activeStreamSessionId;
-    if (id) get().updateSessionStream(id, { steering, followUp });
-    else set({ steeringQueue: steering, followUpQueue: followUp });
-  },
   removeQueuedItem: (type, index) =>
     set((s) => {
       if (type === 'steer') {
@@ -457,7 +358,6 @@ export const useComposerStore = create<ComposerState>((set, get) => ({
   reset: () =>
     set({
       value: '',
-      cursorPosition: 0,
       isStreaming: false,
       streamingRunId: '',
       isDragging: false,
@@ -466,7 +366,6 @@ export const useComposerStore = create<ComposerState>((set, get) => ({
       slashQuery: '',
       mentionQuery: '',
       pendingAttachments: [],
-      uploadProgress: {},
       streamingBlocks: [],
       streamingUsage: null,
       contextUsage: null,

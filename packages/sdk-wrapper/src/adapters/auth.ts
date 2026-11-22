@@ -5,12 +5,10 @@ import {
 } from '@earendil-works/pi-coding-agent';
 import type {
   AuthCredentialInfo,
-  AuthLoginEvent,
   AuthNotice,
   AuthMethodInfo,
   AuthMethodType,
   AuthPromptAnswer,
-  AuthPromptSpec,
   ProviderAuthRow,
 } from '@pi/types';
 import type { AuthService } from '../services/auth.js';

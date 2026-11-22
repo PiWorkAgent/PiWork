@@ -156,7 +156,7 @@ export function registerPluginIpcHandlers(
     }
   });
 
-  ipcMain.handle('pi:plugin:market:install', async (event, payload: { pluginId?: string }) => {
+  ipcMain.handle('pi:plugin:market:install', async (_event, payload: { pluginId?: string }) => {
     const pluginId = payload?.pluginId;
     if (!pluginId) return { ok: false, error: 'missing pluginId' };
     // Install progress is kernel-wide: every window may show it, and each

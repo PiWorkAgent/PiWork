@@ -36,14 +36,7 @@ export function extractOfficeText(filePath: string, buffer: Buffer): OfficeText 
       if (!sheetXml) continue;
       const rows = sheetXml.split(/<\/row>/g).slice(0, -1);
       for (const row of rows.slice(0, 200)) {
-        const cells = extractTags(row, 'v')
-          .map((v, i) => {
-            // t="s" → shared string index
-            const typeMatch = row.split('<c ').find(() => true) ?? '';
-            void typeMatch;
-            return v;
-          })
-          .filter(Boolean);
+        const cells = extractTags(row, 'v').filter(Boolean);
         if (cells.length) lines.push(cells.join('\t'));
       }
     }

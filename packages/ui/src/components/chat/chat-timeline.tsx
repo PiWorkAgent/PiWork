@@ -279,7 +279,6 @@ export function ChatTimeline() {
   const streamingRunId = useComposerStore((s) => s.streamingRunId);
   const streamingBlocks = useComposerStore((s) => s.streamingBlocks);
   const streamingUsage = useComposerStore((s) => s.streamingUsage);
-  const contextUsage = useComposerStore((s) => s.contextUsage);
   const messageTiming = useComposerStore((s) => s.messageTiming);
   const toolTimings = useComposerStore((s) => s.toolTimings);
   const streamError = useComposerStore((s) => s.streamError);
@@ -760,6 +759,10 @@ export function ChatTimeline() {
     }
   }, [activeSessionId, isStreaming, sdk, session?.title, t, queryClient]);
 
+  // `isLast` marks the one row that carries live streaming props. Comparing
+  // ids once beats scanning the array per rendered row.
+  const lastMessageId = messages[messages.length - 1]?.id;
+
   // The assistant message that ends the current turn — the only one a retry
   // can replace without abandoning later work.
   const regenerableAssistantId = useMemo(() => {
@@ -861,14 +864,14 @@ export function ChatTimeline() {
             if (message.role === 'plugin') {
               return <PluginMessageBubble message={message as PluginMessage} />;
             }
-            const msgIndex = messages.indexOf(message);
-            const isLast = msgIndex === messages.length - 1;
+            // O(1) instead of `messages.indexOf(message)`, which made every
+            // visible row scan the whole transcript on each streaming frame.
+            const isLast = message.id === lastMessageId;
             const isAssistant = message.role === 'assistant';
             return (
               <MessageBubble
                 message={message}
                 isStreaming={isStreaming && isLast && isAssistant}
-                contextUsage={isLast ? contextUsage ?? undefined : undefined}
                 messageTiming={isLast && isAssistant ? messageTiming ?? undefined : undefined}
                 toolTimings={isLast && isAssistant ? toolTimings : EMPTY_TOOL_TIMINGS}
                 suppressedCards={suppressedCards}

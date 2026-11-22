@@ -628,7 +628,7 @@ function defaultScope(panel: { scope?: PanelScope; region: PanelRegion }): Panel
 
 export const usePanelStore = create<PanelStoreState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       panels: [],
       focusedId: EMPTY_FOCUSED,
       openPanelIds: EMPTY_TABS,
@@ -1000,53 +1000,6 @@ export const usePanelStore = create<PanelStoreState>()(
           };
         }),
 
-      /**
-       * Click a tab inside the split's LEFT group.
-       *
-       * It becomes the left pane's active tab and the split stays visible
-       * (VS Code: each editor group has its own active tab). The right
-       * pane's tab is never disturbed.
-       */
-      focusSplitTab: (region, key) =>
-        set((s) => {
-          const selected = s.openPanelIds[region];
-          if (!selected.includes(key)) return s;
-          const groups = s.splitGroups[region] ?? [];
-          let splitGroups = s.splitGroups;
-          if (groups.length >= 2) {
-            const gi = groupIndexContaining(groups, key);
-            if (gi !== -1) {
-              splitGroups = {
-                ...s.splitGroups,
-                [region]: groups.map((g, i) => (i === gi ? { ...g, active: key } : g)),
-              };
-            } else {
-              // A tab not yet assigned to a column: put it in the focused
-              // column and activate it there.
-              const focusIndex =
-                groupIndexContaining(groups, s.focusedId[region] ?? '') >= 0
-                  ? groupIndexContaining(groups, s.focusedId[region] ?? '')
-                  : 0;
-              splitGroups = {
-                ...s.splitGroups,
-                [region]: groups.map((g, i) =>
-                  i === focusIndex
-                    ? { ...g, tabs: [...g.tabs, key], active: key }
-                    : g,
-                ),
-              };
-            }
-          }
-          const focusedId = { ...s.focusedId, [region]: key };
-          const recency = [key, ...s.recency.filter((r) => r !== key)].slice(0, 12);
-          return {
-            splitGroups,
-            focusedId,
-            recency,
-            mountedIds: computeMounted(s.panels, focusedId, s.openPanelIds, recency, splitGroups),
-          };
-        }),
-
       /** Open a fresh tab of `panelId` inside one editor group (its `+` menu). */
       addTabToGroup: (region, groupId, panelId) =>
         set((s) => {
@@ -1146,18 +1099,6 @@ export const usePanelStore = create<PanelStoreState>()(
           };
         }),
 
-      /** Collapse the split containing `key`; every tab stays open. */
-      unsplitTab: (region, key) =>
-        set((s) => {
-          const groups = s.splitGroups[region] ?? [];
-          if (!groups.some((g) => g.tabs.includes(key))) return s;
-          const splitGroups = { ...s.splitGroups, [region]: [] };
-          return {
-            splitGroups,
-            mountedIds: computeMounted(s.panels, s.focusedId, s.openPanelIds, s.recency, splitGroups),
-          };
-        }),
-
       setGroupWeights: (region, weights) =>
         set((s) => {
           const groups = s.splitGroups[region] ?? [];
@@ -1218,17 +1159,6 @@ export const usePanelStore = create<PanelStoreState>()(
           };
         }),
 
-      /** Override a tab's label (viewer file name, browser page title). */
-      setTabTitle: (key, title) =>
-        set((s) => {
-          const next = title && title.trim() ? title : '';
-          if ((s.tabTitles[key] ?? '') === next) return s;
-          const tabTitles = { ...s.tabTitles };
-          if (next) tabTitles[key] = next;
-          else delete tabTitles[key];
-          return { tabTitles };
-        }),
-
       /** A plugin changed a tab's params/title from inside its panel. */
       updateTab: (key, update) =>
         set((s) => {
@@ -1258,12 +1188,6 @@ export const usePanelStore = create<PanelStoreState>()(
           }
           return { params, tabTitles };
         }),
-
-      /** The active panel (not tab) of a region. */
-      focusedPanelOf: (region: PanelRegion): string | null => {
-        const key = get().focusedId[region];
-        return key ? panelIdOfTab(key) : null;
-      },
 
       /**
        * Switch conversations: the session-scoped slice of the tab list
@@ -1478,12 +1402,6 @@ export const usePanelStore = create<PanelStoreState>()(
           };
         }),
 
-      clearPending: (id) =>
-        set((s) => {
-          const rt = { ...s.runtime[id] };
-          delete rt.pending;
-          return { runtime: { ...s.runtime, [id]: rt } };
-        }),
     }),
     {
       name: 'pi-panel-storage',
@@ -1729,10 +1647,6 @@ export interface PanelStoreState {
     targetGroupId: string,
     beforeKey?: string,
   ) => void;
-  /** Activate a tab within its group (or assign it to the focused group). */
-  focusSplitTab: (region: PanelRegion, key: string) => void;
-  /** Collapse the split containing `key`; every tab stays open. */
-  unsplitTab: (region: PanelRegion, key: string) => void;
   /** Replace the groups' relative widths (same length as `splitGroups`). */
   setGroupWeights: (region: PanelRegion, weights: number[]) => void;
   /** Drag-reorder the open tabs. */
@@ -1741,15 +1655,11 @@ export interface PanelStoreState {
   setPanelOrder: (region: PanelRegion, ids: string[]) => void;
   /** Activate an open tab. */
   setFocused: (region: PanelRegion, key: string) => void;
-  /** Override a tab's label (viewer file name, browser page title). */
-  setTabTitle: (key: string, title: string | null) => void;
   /** A plugin changed a tab's params/title from inside its panel. */
   updateTab: (
     key: string,
     update: { title?: string | null; params?: Record<string, unknown> },
   ) => void;
-  /** The active panel (not tab) of a region. */
-  focusedPanelOf: (region: PanelRegion) => string | null;
   /**
    * Switch conversations: the session-scoped slice of the tab list detaches
    * into `sessionPanels`; the incoming session's slice attaches. Global tabs
@@ -1757,7 +1667,6 @@ export interface PanelStoreState {
    */
   enterSession: (sessionId: string | null) => void;
   setPanelStatus: (status: PluginPanelStatus) => void;
-  clearPending: (id: string) => void;
 }
 
 /**

@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useLayoutEffect, useEffect, KeyboardEvent } from 'react';
+import { useRef, useCallback, useLayoutEffect, useEffect, KeyboardEvent } from 'react';
 import { cn } from '@/lib/utils';
 import { useCommandStore } from '@/stores/command-store';
 import { useI18n } from '@/i18n';
@@ -23,7 +23,6 @@ interface ComposerInputProps {
   showMenu?: boolean;
   onMenuNavigate?: (direction: 'up' | 'down') => void;
   onMenuSelect?: () => void;
-  totalMenuItems?: number;
   /** Called when Ctrl+Enter is pressed while streaming: steer the agent */
   onSteerSubmit?: () => void;
   /** Called when Enter is pressed while streaming: queue a follow-up */
@@ -140,8 +139,6 @@ export function ComposerInput({
   // Registry-driven command chips (host + plugin commands).
   const slashCommandNames = useSlashCommandNames();
 
-  const [localValue, setLocalValue] = useState(value);
-
   // Calculate maxHeight based on line height
   useLayoutEffect(() => {
     if (!autoResize || !editorRef.current) return;
@@ -164,7 +161,6 @@ export function ComposerInput({
     // (even if text matches, we need to show the styled span)
     if (currentText !== value || pendingTokenInsert?.current) {
       editorRef.current.innerHTML = renderPlainTextToHTML(value, slashCommandNames);
-      setLocalValue(value);
       // Place cursor at end after external value change (e.g., menu selection)
       placeCaretAtEnd(editorRef.current);
     }
@@ -223,7 +219,6 @@ export function ComposerInput({
     }
 
     const text = getPlainText(editorRef.current);
-    setLocalValue(text);
     justSynced.current = true;
     flushToStore(text);
   }, [flushToStore]);
@@ -323,7 +318,6 @@ export function ComposerInput({
         isComposing.current = false;
         if (editorRef.current) {
           const text = getPlainText(editorRef.current);
-          setLocalValue(text);
           justSynced.current = true;
           flushToStore(text);
         }

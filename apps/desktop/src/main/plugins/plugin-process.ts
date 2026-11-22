@@ -5,7 +5,6 @@ import type {
   CapabilityCallMessage,
   HostToPluginMessage,
   PluginCommandResultMessage,
-  PluginContextResultMessage,
   PluginToolContent,
   PluginToolResultMessage,
   PluginToHostMessage,

@@ -813,7 +813,13 @@ function ProviderCard({
               <code className="break-all rounded bg-muted px-1 text-[0.625rem]">
                 {keyVisible ? provider.apiKey : maskKey(provider.apiKey)}
               </code>
-              <Button variant="ghost" size="icon" className="h-5 w-5 shrink-0" onClick={onToggleKey}>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-5 w-5 shrink-0"
+                onClick={onToggleKey}
+                aria-label={keyVisible ? t('隐藏 API Key') : t('显示 API Key')}
+              >
                 {keyVisible ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
               </Button>
             </div>

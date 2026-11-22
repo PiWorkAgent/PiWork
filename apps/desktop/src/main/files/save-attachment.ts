@@ -2,6 +2,7 @@ import { existsSync, promises as fsp, statSync } from 'node:fs';
 import { basename, extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import type { SaveAttachmentInput, SavedAttachment } from '@pi/types';
 import { uniquePath } from './import-files.js';
+import { isWithin } from './path-utils.js';
 
 /**
  * Copy a composer attachment into the window's workspace so it has a real
@@ -48,11 +49,6 @@ function safeName(raw: unknown): string {
   const ext = extname(safe);
   const stemLimit = Math.max(1, 180 - ext.length);
   return safe.slice(0, stemLimit) + ext;
-}
-
-function isWithin(child: string, parent: string): boolean {
-  const rel = relative(parent, child);
-  return rel === '' || (!rel.startsWith(`..${sep}`) && rel !== '..' && !isAbsolute(rel));
 }
 
 function relativePathOf(root: string, target: string): string {

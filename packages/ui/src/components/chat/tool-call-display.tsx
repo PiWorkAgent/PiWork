@@ -1,6 +1,7 @@
 import { Loader2, MessageCircleQuestion, ShieldAlert } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 import { cn } from '@/lib/utils';
+import { formatDuration } from '@/lib/format';
 import {
   ASK_TOOL_NAME,
   TODO_TOOL_NAME,
@@ -34,11 +35,6 @@ interface ToolCallDisplayProps {
    * first and one last card carry the summary.
    */
   showPluginCard?: boolean;
-}
-
-function formatDuration(ms: number): string {
-  if (ms >= 1000) return `${(ms / 1000).toFixed(1)}s`;
-  return `${ms}ms`;
 }
 
 /**
@@ -124,7 +120,6 @@ export function ToolCallDisplay({
 }: ToolCallDisplayProps) {
   const { t } = useI18n();
   const [expanded, setExpanded] = useState(false);
-  const [userCollapsed, setUserCollapsed] = useState(false);
   const isRunning = isStreaming && !result;
   // An approval request for this exact call means the gate in main is holding
   // it before execution — show the inline card instead of a running spinner.
@@ -169,13 +164,7 @@ export function ToolCallDisplay({
   const resultIsEmpty = result ? (resultText.trim() === '' || resultText.trim() === '(empty)') : false;
 
   const handleToggle = () => {
-    if (expanded) {
-      setExpanded(false);
-      setUserCollapsed(true);
-    } else {
-      setExpanded(true);
-      setUserCollapsed(false);
-    }
+    setExpanded((prev) => !prev);
   };
 
   const preview = getToolPreview(block);

@@ -9,7 +9,7 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { runProcess, withTempDir } from '../process.js';
-import type { ResolvedVoiceProvider, VoiceAdapter } from '../types.js';
+import type { VoiceAdapter } from '../types.js';
 
 export interface WhisperArgs {
   binaryPath: string;

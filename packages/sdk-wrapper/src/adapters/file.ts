@@ -1,4 +1,4 @@
-import type { FileService, FileEntry, FileContent, OfficeContent, DocxContent, XlsxContent, XlsxSheet, XlsxRow, XlsxCell, PptxContent, PptxSlide, PptxShape, PptxParagraph, PptxTextRun, PptxShapeFill, PptxShapeOutline, PptxTable, PptxTableCell, PptxTableRow } from '../services/file.js';
+import type { FileService, FileEntry, FileContent, OfficeContent, DocxContent, XlsxContent, XlsxSheet, XlsxRow, XlsxCell, PptxContent, PptxSlide, PptxShape, PptxParagraph, PptxTextRun, PptxShapeFill, PptxShapeOutline, PptxTableCell, PptxTableRow } from '../services/file.js';
 import { IGNORED_DIR_NAMES } from '../services/file.js';
 import {
   readFileSync,
@@ -416,7 +416,7 @@ async function parseXlsx(buffer: Buffer): Promise<XlsxContent> {
       const cells: XlsxCell[] = [];
       for (let c = 1; c <= colCount; c++) {
         const cell = row.getCell(c);
-        cells.push(extractXlsxCell(cell, r));
+        cells.push(extractXlsxCell(cell));
       }
       rows.push({
         height: row.height ?? undefined,
@@ -477,7 +477,7 @@ function extractDefaultFont(workbook: any): { name?: string; size?: number } | u
   return undefined;
 }
 
-function extractXlsxCell(cell: any, rowIdx: number): XlsxCell {
+function extractXlsxCell(cell: any): XlsxCell {
   // Get value as string
   let value = '';
   const isDate = cell.value instanceof Date;
@@ -659,8 +659,6 @@ function formatDate(date: Date, fmt: string): string {
 }
 
 // --- PPTX deep parsing ---
-
-const EMU_PER_POINT = 12700; // 1pt = 12700 EMU
 
 /** Parse theme colors from ppt/theme/theme1.xml */
 function parseThemeColors(zip: AdmZip): Map<string, string> {

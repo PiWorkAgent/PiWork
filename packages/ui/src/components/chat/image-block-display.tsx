@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Image, ImageOff, Maximize2, X, Loader2 } from 'lucide-react';
+import { ImageOff, Maximize2, X, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { useI18n } from '@/i18n';

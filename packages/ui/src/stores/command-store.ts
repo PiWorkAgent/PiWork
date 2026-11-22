@@ -52,7 +52,6 @@ export const COMMAND_CATEGORY_LABELS: Record<string, MessageKey> = {
 interface CommandStoreState {
   commands: RegisteredCommand[];
   setPluginCommands: (pluginId: string, cmds: { name: string; title?: string; description?: string }[]) => void;
-  clearPluginCommands: (pluginId: string) => void;
 }
 
 export const useCommandStore = create<CommandStoreState>()((set) => ({
@@ -71,7 +70,4 @@ export const useCommandStore = create<CommandStoreState>()((set) => ({
         })),
       ],
     })),
-
-  clearPluginCommands: (pluginId) =>
-    set((s) => ({ commands: s.commands.filter((c) => c.source !== pluginId) })),
 }));
