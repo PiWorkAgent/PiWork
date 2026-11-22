@@ -1,6 +1,7 @@
 import {
   Fragment,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -28,6 +29,29 @@ import { NO_DRAG } from '@/components/layout/title-bar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 /**
+ * Bring `key`'s pill into the strip's visible span, horizontally only.
+ *
+ * The strip is the one thing that scrolls under the tabs, so nudge its
+ * `scrollLeft` instead of calling `scrollIntoView` — that would also scroll
+ * ancestor containers. A small gutter keeps the pill off the edge.
+ */
+function scrollTabIntoView(scroller: HTMLElement | null, key: string | null | undefined): void {
+  if (!scroller || !key) return;
+  const pill = Array.from(scroller.querySelectorAll<HTMLElement>('[data-panel-tab]')).find(
+    (node) => node.dataset.panelTab === key,
+  );
+  if (!pill) return;
+  const box = scroller.getBoundingClientRect();
+  const rect = pill.getBoundingClientRect();
+  const gutter = 8;
+  if (rect.left < box.left + gutter) {
+    scroller.scrollLeft -= box.left + gutter - rect.left;
+  } else if (rect.right > box.right - gutter) {
+    scroller.scrollLeft += rect.right - (box.right - gutter);
+  }
+}
+
+/**
  * The tab strip for the right column, in the header band (the title bar).
  *
  * Single view: one flat strip. Split view: the strip is partitioned into
@@ -37,6 +61,9 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
  *
  * Every tab has a split button (shown on hover; always visible on the active
  * tab) and every bar has a `+` that opens the plugin picker for that group.
+ * The `+` trails the last tab, starts at the far left when the bar is empty,
+ * and only pins to the right edge once the tabs no longer fit and the strip
+ * scrolls under it.
  * There is deliberately no context menu: a popup would either be covered by
  * the native view or force the pane to be hidden.
  */
@@ -113,6 +140,17 @@ export function PanelTabs({ region = 'right' }: { region?: PanelRegion }) {
         .filter((entry): entry is { key: string; panel: PanelEntry } => Boolean(entry)),
     [openIds, byId],
   );
+  // The strip scrolls horizontally once the tabs outgrow it; the `+` then
+  // pins to its right edge. A tab opened from the picker is appended at the
+  // end (and may be out of view), so reveal the focused tab whenever it
+  // changes or the set of tabs does. Before paint — the strip starts at
+  // `scrollLeft = 0`, and a post-paint jump would be visible.
+  const stripRef = useRef<HTMLDivElement | null>(null);
+  useLayoutEffect(() => {
+    scrollTabIntoView(stripRef.current, activeId);
+    // `groups` re-mounts this strip when a split collapses back to one view;
+    // without it the reveal would not re-run for the newly mounted scroller.
+  }, [activeId, tabs.length, groups.length]);
   const pickerItems = useMemo(
     () => installedPanels(panels, panelOrder, region),
     [panels, panelOrder, region],
@@ -242,7 +280,15 @@ export function PanelTabs({ region = 'right' }: { region?: PanelRegion }) {
       {...osDropHandlers}
     >
       <div className="flex min-w-0 flex-1 items-center gap-1">
-        <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto px-0.5 py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {/* `flex-initial`, not `flex-1`: the strip takes its tabs' own width,
+            so the `+` trails the last tab — and sits at the far left when
+            there are none. It only shrinks (and scrolls) once the tabs no
+            longer fit, which is exactly when the `+` should stop following
+            them and pin to the right edge. */}
+        <div
+          ref={stripRef}
+          className="flex min-w-0 flex-initial items-center gap-1 overflow-x-auto px-0.5 py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
           <div
             role="tablist"
             aria-label={t('已打开的标签')}
@@ -347,6 +393,8 @@ function SplitTabHeader({
   const [dragId, setDragId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const openSeq = useRef(0);
+  // One scroller per group, keyed by group id, for revealing the focused tab.
+  const stripRefs = useRef(new Map<string, HTMLDivElement>());
 
   const openGroupPicker = async (group: EditorGroup) => {
     const seq = ++openSeq.current;
@@ -369,6 +417,12 @@ function SplitTabHeader({
     },
     [],
   );
+
+  // The focused tab may sit in any column; only the scroller that contains it
+  // finds a pill to reveal. Same contract as the single strip.
+  useLayoutEffect(() => {
+    for (const scroller of stripRefs.current.values()) scrollTabIntoView(scroller, activeId);
+  }, [activeId, openIds]);
 
   return (
     <div
@@ -426,7 +480,16 @@ function SplitTabHeader({
                 }
                 onDrop={(e) => dropMove(e)}
               >
-                <div className="flex min-w-0 flex-1 items-center overflow-x-auto px-0.5 py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                {/* Same sizing contract as the single strip: content width
+                    until it runs out of room, so this group's `+` trails its
+                    last tab and pins to the column's edge only on overflow. */}
+                <div
+                  ref={(node) => {
+                    if (node) stripRefs.current.set(group.id, node);
+                    else stripRefs.current.delete(group.id);
+                  }}
+                  className="flex min-w-0 flex-initial items-center overflow-x-auto px-0.5 py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                >
                   <div
                     role="tablist"
                     aria-label={t('窗格标签')}
