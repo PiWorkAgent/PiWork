@@ -34,9 +34,9 @@ function AlertDialogOverlay({
 }: React.ComponentProps<typeof AlertDialogPrimitive.Overlay>) {
   const ref = React.useRef<HTMLDivElement | null>(null);
 
-  // Same contract as DialogOverlay: keep the native caption corner in step
-  // with the backdrop while this alert is open.
-  React.useEffect(() => {
+  // Same contract as DialogOverlay: re-pick the native caption glyph color
+  // for the dimmed corner, before paint.
+  React.useLayoutEffect(() => {
     const node = ref.current;
     return node ? registerNativeChromeOverlay(node) : undefined;
   }, []);
@@ -46,7 +46,7 @@ function AlertDialogOverlay({
       ref={ref}
       data-slot="alert-dialog-overlay"
       className={cn(
-        'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/50',
+        'data-[state=closed]:animate-out data-[state=closed]:fade-out-0 fixed inset-0 z-50 bg-black/50',
         className,
       )}
       {...props}

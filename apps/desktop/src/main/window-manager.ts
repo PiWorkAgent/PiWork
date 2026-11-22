@@ -71,10 +71,16 @@ export function createMainWindow(options: CreateWindowOptions = {}): BrowserWind
       : isWindows
         ? {
             titleBarStyle: 'hidden' as const,
-            // Colors are provisional; the renderer pushes the resolved theme
-            // colors over `pi:window:setTitleBarOverlay` on every theme change.
+            // The strip is transparent: the page underneath paints the band
+            // (and any modal backdrop dimming it), while the OS only draws the
+            // caption glyphs on top. An opaque color has to be re-pushed from
+            // the renderer whenever the theme or a dialog changes, and the
+            // round trip visibly lags — the corner flashed white before the
+            // dimmed color arrived. Transparency removes the round trip; the
+            // renderer still pushes `symbolColor` for glyph contrast.
+            // (Transparent overlay colors need Electron >= 43.)
             titleBarOverlay: {
-              color: '#ffffff',
+              color: '#00000000',
               symbolColor: '#3f3f46',
               height: TITLE_BAR_HEIGHT,
             },

@@ -16,10 +16,10 @@ const DialogOverlay = React.forwardRef<
 >(({ className, ...props }, ref) => {
   const localRef = React.useRef<HTMLDivElement | null>(null);
 
-  // Windows paints the caption buttons ABOVE the page, so this backdrop
-  // cannot dim that corner. While the overlay is mounted (Radix mounts it
-  // only while the dialog is open) main is told the composite color to use.
-  React.useEffect(() => {
+  // The caption strip is transparent, so this backdrop dims that corner with
+  // the rest of the window on its own. Only the native glyphs need a contrast
+  // flip; do it before paint so they never sit in the wrong color for a frame.
+  React.useLayoutEffect(() => {
     const node = localRef.current;
     return node ? registerNativeChromeOverlay(node) : undefined;
   }, []);
@@ -32,7 +32,10 @@ const DialogOverlay = React.forwardRef<
         else if (ref) (ref as React.MutableRefObject<HTMLDivElement | null>).current = node;
       }}
       className={cn(
-        'fixed inset-0 z-50 bg-black/80 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
+        // No open fade: the glyphs flip before paint, so a half-transparent
+        // backdrop would briefly show them against an undimmed corner. The
+        // close fade is fine — unmount (and the flip back) happens after it.
+        'fixed inset-0 z-50 bg-black/80 data-[state=closed]:animate-out data-[state=closed]:fade-out-0',
         className,
       )}
       {...props}
