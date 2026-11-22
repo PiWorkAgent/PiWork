@@ -1,12 +1,14 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { FolderGit2, SquareArrowOutUpRight, Trash2 } from 'lucide-react';
+import { FolderGit2, FolderPlus, SquareArrowOutUpRight, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useSDK } from '@/hooks/use-sdk';
+import { useCreateWorkspace } from '@/hooks/use-create-workspace';
 import { useUIStore } from '@/stores/ui-store';
 import { switchWorkspace } from '@/lib/switch-workspace';
 import { openWorkspaceInNewWindow } from '@/lib/window-actions';
 import { hasDesktopWindowApi } from '@/lib/window-context';
 import { useI18n } from '@/i18n';
+import { Button } from '@/components/ui/button';
 import {
   Select,
   SelectContent,
@@ -34,6 +36,7 @@ export function WorkspaceDropdown() {
   const activeWorkspaceId = useUIStore((s) => s.activeWorkspaceId);
   const setActiveWorkspace = useUIStore((s) => s.setActiveWorkspace);
   const [deleteTarget, setDeleteTarget] = useState<Workspace | null>(null);
+  const createWorkspace = useCreateWorkspace();
 
   const { data: workspaces, isLoading } = useQuery({
     queryKey: ['workspaces'],
@@ -79,6 +82,28 @@ export function WorkspaceDropdown() {
 
   if (isLoading) {
     return <Skeleton className="h-8 w-full" />;
+  }
+
+  // Nothing to select yet. A dropdown would open onto an empty menu, and on a
+  // fresh install the only possible action is choosing the first folder — the
+  // workspace IS that folder. Render the action itself instead of a menu that
+  // cannot drop anything down.
+  if (!workspaces || workspaces.length === 0) {
+    return (
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-8 w-auto min-w-0 gap-1.5 px-2"
+        onClick={() => createWorkspace.mutate()}
+        disabled={createWorkspace.isPending}
+        aria-label={t('选择工作区')}
+      >
+        <FolderPlus className="h-4 w-4 shrink-0" />
+        <span className="truncate">
+          {createWorkspace.isPending ? t('正在打开…') : t('选择工作区…')}
+        </span>
+      </Button>
+    );
   }
 
   return (
