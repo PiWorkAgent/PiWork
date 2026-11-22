@@ -187,8 +187,10 @@ export function registerNativeIpcHandlers(windows: WindowRegistry): void {
     return senderWindow(windows, event)?.isMaximized() ?? false;
   });
 
-  // Keep the Windows titleBarOverlay in step with the app theme. Throws (and is
-  // swallowed) on macOS/Linux, which have no overlay to update.
+  // Keep the Windows titleBarOverlay's glyph color (and height) in step with
+  // the renderer. The strip itself stays transparent, so the background is the
+  // page's own band/backdrop; only what the OS draws needs updating. Throws
+  // (and is swallowed) on macOS/Linux, which have no overlay to update.
   //
   // `height` is the measured header band, which scales with the 字号 setting.
   // It comes from the renderer because that is where the band's CSS lives;

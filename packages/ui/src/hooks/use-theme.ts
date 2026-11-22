@@ -105,9 +105,18 @@ function alphaOf(value: string): number {
   return 1;
 }
 
-function compositeColor(base: Rgb, overlay: Rgb, alpha: number): string {
+function compositeRgb(base: Rgb, overlay: Rgb, alpha: number): Rgb {
   const mix = (a: number, b: number): number => Math.round(a * (1 - alpha) + b * alpha);
-  return `rgb(${mix(base.r, overlay.r)}, ${mix(base.g, overlay.g)}, ${mix(base.b, overlay.b)})`;
+  return {
+    r: mix(base.r, overlay.r),
+    g: mix(base.g, overlay.g),
+    b: mix(base.b, overlay.b),
+  };
+}
+
+/** Normalize to `rgb()` — Electron rejects some computed-style serializations. */
+function rgbString({ r, g, b }: Rgb): string {
+  return `rgb(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)})`;
 }
 
 function relativeLuminance({ r, g, b }: Rgb): number {
@@ -126,9 +135,9 @@ function contrastRatio(a: Rgb, b: Rgb): number {
 
 /**
  * Full-window modal backdrops (`bg-black/80`, `bg-black/50`) currently on
- * screen. The Windows caption area is painted by the OS ABOVE the page, so a
- * DOM backdrop cannot dim it — the overlay color is composed from the theme
- * background and the topmost backdrop instead.
+ * screen. The transparent caption strip shows these backdrops (the page is
+ * underneath), but the glyphs are drawn by the OS on top, so their color has
+ * to be re-picked against the dimmed corner.
  */
 const activeChromeOverlays = new Set<HTMLElement>();
 
@@ -161,29 +170,36 @@ function syncNativeTitleBar() {
   const foreground = styles.color;
   if (!background || !foreground) return;
 
-  let color = background;
+  const backgroundRgb = parseRgb(background);
+  const foregroundRgb = parseRgb(foreground);
+
+  // The caption strip itself is transparent (see window-manager): the OS only
+  // draws the glyphs, and the page underneath supplies the background. That is
+  // what keeps the corner pixel-identical to the header band — and to a modal
+  // backdrop dimming it — without a renderer→main round trip, which visibly
+  // lagged and made the strip flash white when a dialog opened.
+  //
+  // Only the glyph color still has to be pushed: on a dimmed backdrop the
+  // contrast requirement flips (light theme: near-black glyphs on a dark
+  // corner), so pick the theme color that reads better against what is
+  // actually behind the strip.
   let symbolColor = foreground;
   // The topmost backdrop wins when dialogs are stacked.
   const top = [...activeChromeOverlays].pop();
-  const backgroundRgb = parseRgb(background);
-  const foregroundRgb = parseRgb(foreground);
-  if (top && backgroundRgb && foregroundRgb) {
-    const backdrop = getComputedStyle(top).backgroundColor;
-    // Every full-window backdrop in this app is black (`bg-black/80`,
-    // `bg-black/50`). If the computed value is serialized in a space we do not
-    // parse, dim with black rather than silently skipping the dim.
-    const backdropRgb = parseRgb(backdrop) ?? { r: 0, g: 0, b: 0 };
-    color = compositeColor(backgroundRgb, backdropRgb, alphaOf(backdrop));
-    const composited = parseRgb(color);
-    // Dimmed surfaces can flip the required glyph contrast (light theme:
-    // near-black glyphs on a dark corner). Pick whichever theme color reads
-    // better against the composited background.
-    if (composited) {
-      symbolColor =
-        contrastRatio(composited, foregroundRgb) >= contrastRatio(composited, backgroundRgb)
-          ? foreground
-          : background;
+  if (backgroundRgb && foregroundRgb) {
+    let effective = backgroundRgb;
+    if (top) {
+      const backdrop = getComputedStyle(top).backgroundColor;
+      // Every full-window backdrop in this app is black (`bg-black/80`,
+      // `bg-black/50`). If the computed value is serialized in a space we do
+      // not parse, dim with black rather than silently skipping the dim.
+      const backdropRgb = parseRgb(backdrop) ?? { r: 0, g: 0, b: 0 };
+      effective = compositeRgb(backgroundRgb, backdropRgb, alphaOf(backdrop));
     }
+    symbolColor =
+      contrastRatio(effective, foregroundRgb) >= contrastRatio(effective, backgroundRgb)
+        ? rgbString(foregroundRgb)
+        : rgbString(backgroundRgb);
   }
 
   // The caption buttons sit on the header band, which follows the 字号
@@ -195,5 +211,12 @@ function syncNativeTitleBar() {
   const zoom = Number.isFinite(zoomValue) && zoomValue > 0 ? zoomValue : 1;
   const height = header ? header.offsetHeight * zoom : undefined;
 
-  api.invoke('pi:window:setTitleBarOverlay', { color, symbolColor, height }).catch(() => {});
+  api
+    .invoke('pi:window:setTitleBarOverlay', {
+      // Keep the strip transparent on every sync; only the glyphs are ours.
+      color: '#00000000',
+      symbolColor,
+      height,
+    })
+    .catch(() => {});
 }
