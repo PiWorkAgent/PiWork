@@ -1,5 +1,7 @@
 # PiWork
 
+[English](README.en.md) | 简体中文
+
 基于 Electron + React 的 AI 编程助手桌面应用，提供 Web 和桌面双端体验。
 
 ## 下载
@@ -39,7 +41,7 @@
 
 ## 功能演示
 
-> 以下素材基于 0.4.x 版本界面录制。
+> 以下素材基于 0.4.x 版本界面录制。浏览器自动化与文档预览来自官方插件——插件把能力直接嵌进工作区，而不是打开一个外部窗口。
 
 ### 对话与文件
 
@@ -148,6 +150,24 @@ Web 端不加载插件：浏览器自动化、文档预览等能力需要桌面�
 | [PiWork-Plugin-Docs](https://github.com/PiWorkAgent/PiWork-Plugin-Docs) | 插件开发文档 `com.pi.devdocs`（开发指南也在这里） |
 | [PiWork-Plugin-Diagnostics](https://github.com/PiWorkAgent/PiWork-Plugin-Diagnostics) | 运行诊断 `com.pi.diagnostics` |
 | [PiWork-Registry](https://github.com/PiWorkAgent/PiWork-Registry) | 市场索引（官方 + 社区插件） |
+
+### 插件中心
+
+在右侧栏打开「插件中心」，可以浏览市场、安装 / 更新 / 回滚、确认权限，并开关已安装的插件。装好的插件会出现在「打开插件」菜单里：面板是插件包内的一张网页，由宿主装进右侧栏；后端进程由宿主启动、监控和重启。
+
+![插件中心](./assets/plugin-center.png)
+
+### 插件演示
+
+插件能力不是外挂脚本，而是直接长在工作区里。下面几段演示分别由不同插件提供：
+
+| 插件 | 在 PiWork 里看效果 |
+| --- | --- |
+| 浏览器自动化 `com.pi.browser` | [浏览器自动化演示](https://github.com/PiWorkAgent/PiWork-Plugin-Browser#piwork-中的浏览器自动化) |
+| 文件查看器 `com.pi.files` | [文档处理演示](https://github.com/PiWorkAgent/PiWork-Plugin-Files#piwork-中的文档处理) |
+| 日程本 `com.pi.tasks` | [日程本面板演示](https://github.com/PiWorkAgent/PiWork-Plugin-Tasks#piwork-中的日程本) |
+| 运行诊断 `com.pi.diagnostics` | [运行诊断面板演示](https://github.com/PiWorkAgent/PiWork-Plugin-Diagnostics#piwork-中的运行诊断) |
+| 插件开发文档 `com.pi.devdocs` | [插件开发文档面板演示](https://github.com/PiWorkAgent/PiWork-Plugin-Docs#piwork-中的文档面板) |
 
 客户端读的市场索引：
 
