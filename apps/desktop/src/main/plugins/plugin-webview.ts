@@ -29,6 +29,25 @@ export const ENGINE_SLOT_NAME = 'page';
 export const ENGINE_SLOT_B_NAME = 'page-b';
 
 /**
+ * The live webContents behind a view, or null once it is gone.
+ *
+ * Reading `view.webContents` directly is not safe after destruction: Electron
+ * (41+) turns the getter into `undefined` at teardown, so the common guard
+ * `view.webContents.isDestroyed()` throws a TypeError from inside an event
+ * handler — and an async callback that reaches a dead view is exactly where
+ * that happens. Every read in this file goes through here instead
+ * (electron/electron#50249).
+ */
+function liveContents(view: WebContentsView): WebContents | null {
+  try {
+    const wc = view.webContents as WebContents | null | undefined;
+    return wc && !wc.isDestroyed() ? wc : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Plugin web panels as native views.
  *
  * Every plugin panel — a manifest panel with an `entry` — is a web page. This
@@ -146,10 +165,11 @@ export class PluginWebViews {
     this.mounted.set(slotId, payload);
 
     const view = this.views.get(slotId);
-    if (!view || view.webContents.isDestroyed()) {
+    const wc = view ? liveContents(view) : null;
+    if (!wc) {
       return { ok: true };
     }
-    view.webContents.send('pi:plugin:panel-mounted', payload);
+    wc.send('pi:plugin:panel-mounted', payload);
     return { ok: true };
   }
 
@@ -169,10 +189,11 @@ export class PluginWebViews {
   }): { ok: boolean; error?: string } {
     const slotId = msg?.slotId || `${msg?.pluginId}:${msg?.panelId}`;
     const view = this.views.get(slotId);
-    if (!view || view.webContents.isDestroyed()) {
+    const wc = view ? liveContents(view) : null;
+    if (!wc) {
       return { ok: false, error: `no view for ${slotId}` };
     }
-    view.webContents.send('pi:plugin:panel-activated', msg);
+    wc.send('pi:plugin:panel-activated', msg);
     return { ok: true };
   }
 
@@ -181,15 +202,16 @@ export class PluginWebViews {
     if (!tokens || typeof tokens !== 'object') return;
     this.lastTheme = tokens;
     for (const view of this.views.values()) {
-      if (view.webContents.isDestroyed()) continue;
-      view.webContents.send('pi:plugin:theme', tokens);
+      const wc = liveContents(view);
+      if (!wc) continue;
+      wc.send('pi:plugin:theme', tokens);
     }
   }
 
   /** True when `wc` is one of this window's panel views. */
   ownsWebContents(wc: WebContents): boolean {
     for (const view of this.views.values()) {
-      if (view.webContents === wc) return true;
+      if (liveContents(view) === wc) return true;
     }
     return false;
   }
@@ -210,7 +232,7 @@ export class PluginWebViews {
         /* window already gone */
       }
       try {
-        view.webContents.close();
+        liveContents(view)?.close();
       } catch {
         /* already closed */
       }
@@ -318,11 +340,12 @@ export class PluginWebViews {
    */
   private async snapshotSlot(slotId: string): Promise<LiveSlotSnapshotLayer[]> {
     const view = this.views.get(slotId);
-    if (!view || view.webContents.isDestroyed() || !this.attached.has(slotId)) return [];
+    const wc = view ? liveContents(view) : null;
+    if (!view || !wc || !this.attached.has(slotId)) return [];
     const panel = view.getBounds();
     if (panel.width <= 0 || panel.height <= 0) return [];
 
-    const panelImage = await view.webContents.capturePage();
+    const panelImage = await wc.capturePage();
     if (panelImage.isEmpty()) return [];
     const layers: LiveSlotSnapshotLayer[] = [
       {
@@ -338,10 +361,11 @@ export class PluginWebViews {
     for (const engineId of (tabKey && this.engineSlotsByTab.get(tabKey)) || []) {
       const tag = this.engineTagBySlot.get(engineId);
       const engineView = tag ? this.opts.browserManager?.getTabView(tag) : null;
-      if (!engineView || engineView.webContents.isDestroyed()) continue;
+      const engineWc = engineView ? liveContents(engineView) : null;
+      if (!engineView || !engineWc) continue;
       const bounds = engineView.getBounds();
       if (bounds.width <= 0 || bounds.height <= 0) continue;
-      const image = await engineView.webContents.capturePage();
+      const image = await engineWc.capturePage();
       if (image.isEmpty()) continue;
       layers.push({
         dataUrl: image.toDataURL(),
@@ -504,8 +528,9 @@ export class PluginWebViews {
   rewirePluginPorts(pluginId: string, wire: (wc: WebContents) => void): void {
     for (const [slotId, view] of this.views) {
       if (!slotId.startsWith(`${pluginId}:`)) continue;
-      if (view.webContents.isDestroyed()) continue;
-      wire(view.webContents);
+      const wc = liveContents(view);
+      if (!wc) continue;
+      wire(wc);
     }
   }
 
@@ -538,9 +563,10 @@ export class PluginWebViews {
     // state (the viewer's open document, "current file" bookkeeping) is
     // released. The send is queued to the renderer; closing on the next tick
     // gives the preload a chance to forward it onto the panel's port.
-    if (view && mounted?.tabId && !view.webContents.isDestroyed()) {
+    const closedWc = view ? liveContents(view) : null;
+    if (closedWc && mounted?.tabId) {
       try {
-        view.webContents.send('pi:plugin:panel-closed', {
+        closedWc.send('pi:plugin:panel-closed', {
           panelId: mounted.panelId,
           tabId: mounted.tabId,
         });
@@ -550,7 +576,7 @@ export class PluginWebViews {
     }
     setTimeout(() => {
       try {
-        view?.webContents.close();
+        if (view) liveContents(view)?.close();
       } catch {
         /* already gone */
       }
@@ -604,7 +630,7 @@ export class PluginWebViews {
     tabKey?: string,
   ): WebContentsView | null {
     const existing = this.views.get(slotId);
-    if (existing && !existing.webContents.isDestroyed()) return existing;
+    if (existing && liveContents(existing)) return existing;
     if (existing) this.destroySlot(slotId); // dead webContents (crash) → rebuild
 
     const view = new WebContentsView({
@@ -688,20 +714,32 @@ export class PluginWebViews {
     // the shell only reports when it mounts the slot, so a page that comes
     // back on its own would otherwise never learn its session or workspace.
     view.webContents.on('did-finish-load', () => {
-      if (view.webContents.isDestroyed()) return;
-      if (this.lastTheme) view.webContents.send('pi:plugin:theme', this.lastTheme);
+      const wc = liveContents(view);
+      if (!wc) return;
+      if (this.lastTheme) wc.send('pi:plugin:theme', this.lastTheme);
       const mounted = this.mounted.get(slotId);
-      if (mounted) view.webContents.send('pi:plugin:panel-mounted', mounted);
+      if (mounted) wc.send('pi:plugin:panel-mounted', mounted);
     });
 
     // A crashed renderer leaves a blank rectangle above the shell; surface it
     // rather than letting it silently swallow clicks. The page is gone, so its
     // engine slot has no live reporter either — hide the plugin's everything.
+    // Deferred: this fires while Electron is still retiring the renderer, and
+    // detaching native views from inside that callback re-enters Chromium's
+    // process-exit path.
     view.webContents.on('render-process-gone', (_e, details) => {
       console.error(`[plugin-view] ${slotId} renderer gone: ${details.reason}`);
-      this.hidePluginSlots(pluginId);
-      this.hideSlot(slotId);
-      this.views.delete(slotId);
+      setImmediate(() => {
+        try {
+          this.hidePluginSlots(pluginId);
+          this.hideSlot(slotId);
+        } catch (err) {
+          console.warn(`[plugin-view] ${slotId} cleanup after renderer crash failed:`, err);
+        }
+        // Only drop the map entry if it is still THIS dead view: the slot may
+        // have been rebuilt in the tick between the crash and this cleanup.
+        if (this.views.get(slotId) === view) this.views.delete(slotId);
+      });
     });
 
     // A different-document navigation (incl. reload) tears down the page's

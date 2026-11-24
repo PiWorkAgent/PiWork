@@ -288,8 +288,11 @@ export function registerLiveSlotIpcHandlers(host: LiveSlotIpcHost): void {
       // exactly over its slot at any zoom level.
       const zoom = event.sender.getZoomFactor?.() ?? 1;
       const scale = Number.isFinite(zoom) && zoom > 0 ? zoom : 1;
+      // `Number.isFinite`, not just `typeof === 'number'`: a measurement taken
+      // while the slot was collapsed can be NaN, and a NaN rectangle handed to
+      // `WebContentsView.setBounds` is a native geometry no view can hold.
       const dip = (value: unknown): number =>
-        Math.round((typeof value === 'number' ? value : 0) * scale);
+        typeof value === 'number' && Number.isFinite(value) ? Math.round(value * scale) : 0;
       return registry.setBounds(
         String(payload?.slotId ?? ''),
         {

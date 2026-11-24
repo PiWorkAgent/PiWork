@@ -347,19 +347,24 @@ export class BrowserManager {
     if (this.splitPartner === tabId) this.splitPartner = null;
     if (opts.keepRecord) {
       let title = '';
+      let url = '';
       try {
         title = t.wc.getTitle() ?? '';
+        url = t.wc.getURL() ?? '';
       } catch {
-        /* destroyed */
+        /* destroyed — keep the record empty rather than throw out of closeTab */
       }
-      this.evictedTabs.set(tabId, { url: t.wc.getURL() ?? '', title });
+      this.evictedTabs.set(tabId, { url, title });
     }
     try {
       if (t.debuggerAttached) t.wc.debugger.detach();
     } catch { /* ignore */ }
     try {
       this.mainWindow?.contentView.removeChildView(t.view);
-      t.wc.close();
+      // `waitForBeforeUnload: false`: a tab closes like a browser tab. On the
+      // renderer-crash path there is nobody left to answer an unload prompt,
+      // and asking would leave the webContents half-closed.
+      if (!t.wc.isDestroyed()) t.wc.close({ waitForBeforeUnload: false });
     } catch { /* ignore */ }
     this.tabs.delete(tabId);
     if (this.activeTabId === tabId) this.activeTabId = null;
@@ -720,10 +725,18 @@ export class BrowserManager {
       console.warn('[BrowserManager] page requested close:', t.id);
     });
     wc.on('destroyed', () => {
-      if (this.tabs.has(t.id)) {
+      // Deferred: `destroyed` fires from inside Chromium's own teardown, and
+      // closeTab() detaches the view and closes the webContents — re-entering
+      // the view tree there is exactly where a native crash lives.
+      setImmediate(() => {
+        if (!this.tabs.has(t.id)) return;
         console.warn('[BrowserManager] tab died outside closeTab:', t.id);
-        this.closeTab(t.id);
-      }
+        try {
+          this.closeTab(t.id);
+        } catch {
+          /* the manager is already torn down */
+        }
+      });
     });
 
     // Log renderer crashes for diagnosis (GPU/renderer process death causes
@@ -733,9 +746,17 @@ export class BrowserManager {
       // A dead renderer cannot be reused. Leaving the tab in the map makes
       // every later navigate fail with "Browser tab not available" until the
       // app restarts; dropping it lets the next navigate create a fresh one.
-      try {
-        this.closeTab(t.id);
-      } catch {}
+      // Deferred for the same reason as `destroyed`: this callback runs before
+      // Electron has finished retiring the renderer, and closing the view from
+      // inside it re-enters Chromium's process-exit path.
+      setImmediate(() => {
+        if (!this.tabs.has(t.id)) return;
+        try {
+          this.closeTab(t.id);
+        } catch {
+          /* ignore */
+        }
+      });
     });
     wc.on('unresponsive', () => {
       console.warn('[BrowserManager] webContents became unresponsive');

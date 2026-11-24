@@ -1,5 +1,6 @@
 import { app, shell } from 'electron';
 import { APP_NAME } from '@main/branding';
+import { installCrashReporting } from '@main/crash-reporting';
 import { registerIpcHandlers } from '@main/ipc/index';
 import { registerNativeIpcHandlers } from '@main/ipc/native';
 import { registerWindowIpcHandlers } from '@main/ipc/windows';
@@ -86,6 +87,12 @@ function adoptLegacySettings(): void {
   }
 }
 adoptLegacySettings();
+
+// Crash capture has to be the first thing that runs: Crashpad must be up
+// before anything can crash, and the text log has to exist before the startup
+// code below starts emitting diagnostics. It must also come AFTER the legacy
+// adoption — it creates `userData`, which is the very thing adoption checks.
+installCrashReporting();
 
 // Settings → 存储 may have moved the agent's data directory. The SDK reads
 // `PI_CODING_AGENT_DIR` on every `getAgentDir()` call, but the plugin registry
