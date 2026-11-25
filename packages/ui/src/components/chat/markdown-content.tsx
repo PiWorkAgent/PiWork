@@ -8,6 +8,8 @@ import { Check, Copy } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import { MermaidDiagram } from './mermaid-diagram';
 import { renderTokenizedText } from '@/lib/token-parser';
+import { isPlainClick, openLinkInBrowserPanel } from '@/lib/open-link';
+import { usePluginStore } from '@/stores/plugin-store';
 
 interface MarkdownContentProps {
   content: string;
@@ -138,6 +140,18 @@ function MarkdownContentImpl({ content, isStreaming }: MarkdownContentProps) {
               target="_blank"
               rel="noopener noreferrer"
               {...props}
+              onClick={(event) => {
+                // A plain click on a web link belongs in the app's own
+                // browser panel (a new tab), not the OS. The plugins are read
+                // at click time rather than subscribed: a Markdown body must
+                // not re-render when the plugin list changes.
+                if (!isPlainClick(event)) return;
+                if (href && openLinkInBrowserPanel(href, usePluginStore.getState().plugins)) {
+                  event.preventDefault();
+                }
+                // Otherwise the `target=_blank` default stands, and the shell
+                // sends it to the system browser.
+              }}
             >
               {children}
             </a>
