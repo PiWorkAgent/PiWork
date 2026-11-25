@@ -1,6 +1,15 @@
-import { WebContentsView, BrowserWindow, session, nativeImage } from 'electron';
+import { WebContentsView, BrowserWindow, app, session, nativeImage } from 'electron';
 import { readFile } from 'node:fs/promises';
 import { BROWSER_HELPERS_JS } from './browser-helpers';
+import {
+  ENGINE_UA,
+  PLATFORM_TOKEN,
+  buildElectronUserAgent,
+  navigationRequestHeaders,
+  restartsAtRedirect,
+  userAgentForPage,
+  type EngineUserAgents,
+} from './browser-user-agent';
 import {
   isAbortedNavigation,
   isDocumentUsable,
@@ -15,6 +24,8 @@ import {
   scheduleBrowserSessionCookiePersist,
 } from './browser-session';
 import type { VlmAnalyzer } from './vlm-analyzer';
+
+export { ENGINE_UA } from './browser-user-agent';
 
 /** Snapshot node — simplified accessibility tree. */
 export interface SnapshotNode {
@@ -99,27 +110,10 @@ const ENGINE_WEB_PREFS = {
 
 /**
  * Spoof a standard Chrome UA — zhipin.com and similar CDNs drop Electron's
- * default.
- *
- * The version has to come from the Chromium this build actually ships:
- * `Sec-CH-UA` is not spoofable the same way, so a UA claiming Chrome/130 while
- * the client hints say Chromium/140 is a fingerprint mismatch Cloudflare can
- * see — its challenge then spins at "Checking your Browser…" forever.
+ * default, and Cloudflare's challenge treats a UA that disagrees with the
+ * client hints as automation. The two user agents, and which pages see which,
+ * live in ./browser-user-agent — Google's sign-in needs the opposite posture.
  */
-const CHROME_MAJOR = (process.versions.chrome || '130.0.0.0').split('.')[0];
-// The platform token must match where the app actually runs: a Macintosh UA on
-// Windows/Linux contradicts Sec-CH-UA-Platform (which Chromium keeps truthful)
-// and makes download pages offer the macOS build. Only the `Electron` token is
-// being hidden here, not the OS.
-const PLATFORM_TOKEN =
-  process.platform === 'win32'
-    ? 'Windows NT 10.0; Win64; x64'
-    : process.platform === 'darwin'
-      ? 'Macintosh; Intel Mac OS X 10_15_7'
-      : 'X11; Linux x86_64';
-export const ENGINE_UA =
-  `Mozilla/5.0 (${PLATFORM_TOKEN}) ` +
-  `AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${CHROME_MAJOR}.0.0.0 Safari/537.36`;
 
 /**
  * Hard ceiling on live engine views — each tab is a renderer process
@@ -165,6 +159,10 @@ class BrowserTab {
   lastDialog: string | null = null;
   /** How to answer the next JS dialog. Dismiss is the safe default. */
   dialogPolicy: 'accept' | 'dismiss' = 'dismiss';
+  /** The UA this tab's main frame presents — changed as a navigation starts. */
+  presentedUa = '';
+  /** Navigations started over at a sign-in-boundary redirect since last commit. */
+  signInRestarts = 0;
 
   constructor(id: string, view: WebContentsView) {
     this.id = id;
@@ -251,6 +249,23 @@ export class BrowserManager {
   private evictedTabs = new Map<string, { url: string; title: string }>();
   /** Serializes surface borrows (see withTabSurface). */
   private surfaceChain: Promise<unknown> = Promise.resolve();
+
+  /**
+   * The two user agents every tab switches between. Electron's own is rebuilt
+   * from the parts main overrode with `app.userAgentFallback` (see
+   * ./browser-user-agent); built once, at construction, after app metadata is
+   * final.
+   */
+  private readonly userAgents: EngineUserAgents = {
+    chrome: ENGINE_UA,
+    electron: buildElectronUserAgent({
+      appName: app.getName(),
+      appVersion: app.getVersion(),
+      platformToken: PLATFORM_TOKEN,
+      chromeVersion: process.versions.chrome ?? '',
+      electronVersion: process.versions.electron ?? '',
+    }),
+  };
 
   /** ─── Manual zoom (ctrl+wheel / pinch), Chrome-style ─── */
 
@@ -619,6 +634,21 @@ export class BrowserManager {
     return next;
   }
 
+  /**
+   * Present `ua` to the tab's pages and their requests, if it differs from
+   * what the tab already presents. Per webContents, never per session: the
+   * session carries Chrome's UA for frames and workers that outlive a switch.
+   */
+  private presentUserAgent(t: BrowserTab, ua: string): void {
+    if (t.presentedUa === ua) return;
+    t.presentedUa = ua;
+    try {
+      t.wc.setUserAgent(ua);
+    } catch {
+      /* webContents already torn down */
+    }
+  }
+
   /** Wire a fresh tab's webContents to the profile-level policies and events. */
   private wireTab(t: BrowserTab): void {
     const wc = t.wc;
@@ -626,7 +656,38 @@ export class BrowserManager {
     // Start watching the shared profile for login cookies the first time a tab
     // is wired; the watcher is process-wide and idempotent.
     ensureBrowserSessionCookieWatcher();
-    wc.setUserAgent(ENGINE_UA);
+    this.presentUserAgent(t, ENGINE_UA);
+
+    // ── User agent follows the main frame ──
+    // Google's sign-in refuses an anonymous Chrome and accepts Electron's own
+    // UA; everything else keeps Chrome's (see ./browser-user-agent). The UA is
+    // switched as a main-frame navigation starts, and a server redirect that
+    // crosses the boundary is started over at its target — a page's
+    // navigator.userAgent can only change as its navigation starts.
+    wc.on('did-start-navigation', (details) => {
+      if (!details.isMainFrame || details.isSameDocument) return;
+      this.presentUserAgent(t, userAgentForPage(details.url, this.userAgents));
+    });
+    wc.on('will-redirect', (details) => {
+      if (
+        !restartsAtRedirect(
+          {
+            url: details.url,
+            isMainFrame: details.isMainFrame,
+            isSameDocument: details.isSameDocument,
+            presentedUa: t.presentedUa,
+            restarts: t.signInRestarts,
+          },
+          this.userAgents,
+        )
+      ) {
+        return;
+      }
+      t.signInRestarts += 1;
+      details.preventDefault();
+      this.presentUserAgent(t, userAgentForPage(details.url, this.userAgents));
+      t.wc.loadURL(details.url).catch(() => {});
+    });
 
     // Ignore certificate errors for user-browsed content (equivalent to
     // clicking "Proceed anyway" in a regular browser). The browser loads
@@ -646,6 +707,15 @@ export class BrowserManager {
       // own override — the app-wide fallback is set in main, this keeps the
       // browser partition self-consistent even if that changes.
       ses.setUserAgent(ENGINE_UA);
+      // Chromium writes a main-frame navigation's User-Agent when it creates
+      // the navigation, before did-start-navigation above updates the tab, so
+      // the request would still name the UA of the page being left. Correct it
+      // here, in both directions across the Google sign-in boundary.
+      ses.webRequest.onBeforeSendHeaders((details, callback) => {
+        if (details.resourceType !== 'mainFrame') return callback({});
+        const revised = navigationRequestHeaders(details.requestHeaders, details.url, this.userAgents);
+        callback(revised ? { requestHeaders: revised } : {});
+      });
       ses.setPermissionRequestHandler((_wc, _permission, callback) => {
         callback(true);
       });
@@ -678,6 +748,9 @@ export class BrowserManager {
     });
 
     wc.on('did-navigate', (_event, url) => {
+      // A committed document ends any redirect chain — the restart budget is
+      // per chain, not per tab lifetime.
+      t.signInRestarts = 0;
       if (url && !url.startsWith('about:')) {
         this.urlChangedCallbacks.forEach((cb) => cb(t.id, url));
       }
