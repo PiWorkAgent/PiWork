@@ -345,6 +345,9 @@ export class BrowserManager {
     view.setBounds({ x: 0, y: 0, width: 0, height: 0 });
     this.mainWindow.contentView.addChildView(view);
     this.tabs.set(id, t);
+    // No surface yet, so no sound: a background tab the agent opens must not
+    // autoplay into a room the user cannot see. The first show unmutes it.
+    this.setAudible(t, false);
     t.wc.loadURL(opts.url ?? 'about:blank').catch(() => {});
     if (opts.activate !== false) {
       this.activeTabId = id;
@@ -473,6 +476,7 @@ export class BrowserManager {
       try {
         o.view.setBounds({ x: 0, y: 0, width: 0, height: 0 });
       } catch { /* ignore */ }
+      this.setAudible(o, false);
     }
     try {
       t.view.setBounds(bounds);
@@ -482,9 +486,29 @@ export class BrowserManager {
       // Re-top: if a panel view joined the tree after this engine view, it
       // would paint over the engine — re-append to keep the engine last.
       this.retop(t);
+      this.setAudible(t, true);
       void this.setDeviceMetrics(bounds.width, t).catch(() => {});
     } catch (err) {
       console.warn('[BrowserManager] showTab failed:', err);
+    }
+  }
+
+  /**
+   * Mute a page whose view is not on screen — and only that page.
+   *
+   * Hidden views keep running (that is the point of the multi-tab engine), but
+   * a page with no visible surface has no reachable pause button: audio came
+   * from nowhere and could only be stopped by finding the tab again. Chromium's
+   * tab mute is separate from the page's own volume, so re-showing the tab
+   * resumes playback exactly where it was.
+   */
+  private setAudible(t: BrowserTab, audible: boolean): void {
+    try {
+      if (t.wc.isDestroyed()) return;
+      if (t.wc.isAudioMuted() === !audible) return;
+      t.wc.setAudioMuted(!audible);
+    } catch {
+      /* the page is already going away */
     }
   }
 
@@ -508,6 +532,7 @@ export class BrowserManager {
       t.lastBounds = { ...bounds };
       t.lastShownAt = Date.now();
       this.retop(t);
+      this.setAudible(t, true);
       void this.setDeviceMetrics(bounds.width, t).catch(() => {});
     } catch (err) {
       console.warn('[BrowserManager] showSecondary failed:', err);
@@ -534,6 +559,7 @@ export class BrowserManager {
       t.lastShownAt = Date.now();
       this.activeTabId = t.id;
       this.retop(t);
+      this.setAudible(t, true);
       void this.setDeviceMetrics(bounds.width, t).catch(() => {});
     } catch (err) {
       console.warn('[BrowserManager] showTabTile failed:', err);
@@ -550,6 +576,7 @@ export class BrowserManager {
     } catch {
       /* view already gone */
     }
+    this.setAudible(t, false);
   }
 
   /** Zero the secondary pane's view (split collapsed or its slot hidden). */
@@ -563,6 +590,7 @@ export class BrowserManager {
         t.view.setBounds({ x: 0, y: 0, width: 0, height: 0 });
         t.lastBounds = null;
       } catch { /* ignore */ }
+      this.setAudible(t, false);
     }
   }
 
@@ -582,6 +610,7 @@ export class BrowserManager {
         t.view.setBounds({ x: 0, y: 0, width: 0, height: 0 });
         t.lastBounds = null;
       } catch { /* ignore */ }
+      this.setAudible(t, false);
     }
   }
 

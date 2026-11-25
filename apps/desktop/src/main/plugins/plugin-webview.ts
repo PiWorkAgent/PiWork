@@ -74,7 +74,11 @@ export class PluginWebViews {
   private readonly views = new Map<string, WebContentsView>();
   /** Slots we have registered a handler for, so re-registration is cheap. */
   private readonly registered = new Set<string>();
-  /** Engine slots this class registered — cleanup must NOT close their view. */
+  /**
+   * Engine slots this class registered. Their teardown releases the handler
+   * but never touches the panel view map — the engine page belongs to the
+   * browser manager, not to this class.
+   */
   private readonly engineRegistered = new Set<string>();
   /** Engine slots per host tab (`page` / `page-b`), so hiding one pane leaves the other alone. */
   private readonly engineSlotsByTab = new Map<string, Set<string>>();
@@ -466,7 +470,41 @@ export class PluginWebViews {
           this.engineTagBySlot.delete(slotId);
         }, 60);
       },
+      destroy: () => {
+        // The host tab this page was embedded in is GONE — not switched away
+        // from, closed. Hiding it was not enough: the page kept running behind
+        // a zero-sized view, so a video went on playing after its tab (and
+        // the panel showing it) had disappeared, with no surface left to
+        // pause it. The engine tab is what the user perceives as the tab, so
+        // it closes with the host tab — the same thing the plugin does for
+        // its own strip (`tabs.close`).
+        hideSeq++;
+        const tag = lastTag || this.engineTagBySlot.get(slotId) || '';
+        lastTag = '';
+        this.engineTagBySlot.delete(slotId);
+        if (!tag || this.engineTagClaimedBy(tag, slotId)) return;
+        try {
+          bm.closeTab(tag);
+        } catch (err) {
+          console.warn(`[plugin-view] closing engine tab ${tag} failed:`, err);
+        }
+      },
     };
+  }
+
+  /**
+   * Whether a live slot OTHER than `exceptSlotId` still shows engine view
+   * `tag`.
+   *
+   * A right-column split can put two panes of the same panel on screen, and
+   * both may be parked on the same page. Closing one host tab must not close
+   * the page underneath the other.
+   */
+  private engineTagClaimedBy(tag: string, exceptSlotId: string): boolean {
+    for (const [slotId, shown] of this.engineTagBySlot) {
+      if (slotId !== exceptSlotId && shown === tag) return true;
+    }
+    return false;
   }
 
   /**
@@ -544,13 +582,14 @@ export class PluginWebViews {
     this.registered.delete(slotId);
     this.mounted.delete(slotId);
 
-    // This tab will never come back under the same key: release its engine
-    // slot handlers (hiding the engine view, not closing it — the engine and
-    // its session belong to the host).
+    // This tab will never come back under the same key: RELEASE its engine
+    // slots. Release, not unregister — unregister only hides, which left the
+    // embedded page running (and audible) with nothing on screen to stop it.
+    // The engine tab closes with the tab that was showing it.
     const tabKey = this.tabByPanelSlot.get(slotId);
     if (tabKey) {
       for (const engineId of [...(this.engineSlotsByTab.get(tabKey) ?? [])]) {
-        this.opts.liveSlots.unregister(engineId);
+        this.opts.liveSlots.release(engineId);
         this.engineRegistered.delete(engineId);
         this.registered.delete(engineId);
         this.engineTagBySlot.delete(engineId);

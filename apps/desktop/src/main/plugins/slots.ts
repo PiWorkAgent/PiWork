@@ -73,7 +73,9 @@ export interface LiveSlotHandler {
   /**
    * Tear the backing view down entirely — the host tab it belonged to was
    * closed, not merely switched away from. Omit for slots whose view outlives
-   * its reporter (the browser engine).
+   * its reporter; the browser engine slot has one, because the engine page is
+   * what the reader calls "the tab" and must not keep running (or playing
+   * sound) behind a closed one.
    */
   destroy?(): void;
   /**
