@@ -114,6 +114,18 @@ interface ComposerState {
   messageTiming: MessageTiming | null;
   toolTimings: Map<string, number>;
   streamError: string | null;
+  /**
+   * The conversation whose last send failed before it ever reached the
+   * session, so the text went back into the composer.
+   *
+   * "Failed" is two different states and they need different retries: a turn
+   * that reached the session is replayed from the transcript, while one that
+   * never got there exists only in the composer — sending that box again is
+   * the retry, and replaying the previous stored turn would answer the wrong
+   * message. Cleared as soon as a new run starts.
+   */
+  failedDraftSessionId: string | null;
+  setFailedDraftSession: (sessionId: string | null) => void;
   triggerSend: number;
   /** The text the next triggered send carries (set together with triggerSend). */
   triggerContent: string;
@@ -216,6 +228,7 @@ export const useComposerStore = create<ComposerState>((set, get) => ({
   messageTiming: null,
   toolTimings: new Map(),
   streamError: null,
+  failedDraftSessionId: null,
   triggerSend: 0,
   triggerContent: '',
   triggerPluginMessage: null,
@@ -278,7 +291,11 @@ export const useComposerStore = create<ComposerState>((set, get) => ({
       isStreaming: true,
       runId: `run-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
     });
+    // Whatever text the failure put back in the composer is being sent now.
+    if (get().failedDraftSessionId === sessionId) set({ failedDraftSessionId: null });
   },
+
+  setFailedDraftSession: (sessionId) => set({ failedDraftSessionId: sessionId }),
 
   endSessionStream: (sessionId, options = {}) => {
     get().updateSessionStream(sessionId, {
@@ -373,6 +390,7 @@ export const useComposerStore = create<ComposerState>((set, get) => ({
       messageTiming: null,
       toolTimings: new Map(),
       streamError: null,
+      failedDraftSessionId: null,
       triggerSend: 0,
       triggerContent: '',
       triggerPluginMessage: null,

@@ -72,6 +72,7 @@ export const EN_MESSAGES = {
   '{count} 个模型': '{count} models',
   '显示 API Key': 'Show API key',
   '隐藏 API Key': 'Hide API key',
+  '未填写 API Key': 'No API key',
   '登录 {name}': 'Sign in to {name}',
   '选择登录方式。': 'Choose how to sign in.',
   '正在登录…': 'Signing in…',
@@ -509,6 +510,15 @@ export const EN_MESSAGES = {
   松开即可添加附件: 'Drop files to attach',
   发生了未知错误: 'An unknown error occurred',
   发送失败: 'Failed to send message',
+  // ── Failed run, as a card in the transcript ──
+  还没有配置模型: 'No model configured',
+  本轮对话失败: 'This turn failed',
+  '当前模型没有可用的 API Key。打开 设置 → 模型，登录服务商或填写 API Key 后即可继续。':
+    'The selected model has no API key yet. Open Settings → Models to sign in or add a key, then try again.',
+  '设置 → 模型': 'Settings → Models',
+  打开模型设置: 'Open model settings',
+  '正在重试…': 'Retrying…',
+  '这条消息没有发出去，已放回输入框。': 'This message never left — it is back in the composer.',
   添加附件: 'Attach file',
   发送消息: 'Send message',
   可用命令: 'Available Commands',

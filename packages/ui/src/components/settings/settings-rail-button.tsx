@@ -23,7 +23,7 @@ export function SettingsRailButton() {
           type="button"
           aria-label={t('设置')}
           data-testid="settings-rail-button"
-          onClick={openSettings}
+          onClick={() => openSettings()}
           className={cn(
             'relative flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground transition-colors',
             'hover:bg-accent hover:text-accent-foreground',

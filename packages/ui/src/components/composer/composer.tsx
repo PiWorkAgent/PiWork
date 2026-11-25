@@ -467,6 +467,10 @@ export function Composer() {
   // Attachment id → where the send copied it. Filled in onMutate, read by
   // mutationFn to build the prompt and the optimistic blocks.
   const savedAttachmentsRef = useRef(new Map<string, SavedAttachment>());
+  // User messages the conversation held before each send, per conversation.
+  // A failed send compares against it to tell "the turn reached the session"
+  // from "it never left": only the latter gets its text handed back.
+  const userTurnsBeforeSendRef = useRef(new Map<string, number>());
   const sendMutation = useMutation({
     onMutate: async ({ content, sessionId, attachments, pluginMessage }: SendVariables) => {
       // The conversation is part of the variables, not read again later:
@@ -476,6 +480,14 @@ export function Composer() {
       useComposerStore.getState().setSessionPending(sessionId, true);
       // Cancel outgoing refetches so they don't overwrite our optimistic update
       await queryClient.cancelQueries({ queryKey: ['session', sessionId] });
+
+      // Counted before the optimistic bubble goes in, so the failure path can
+      // see what the session actually gained.
+      const cached = queryClient.getQueryData<{ messages?: { role?: string }[] }>(['session', sessionId]);
+      userTurnsBeforeSendRef.current.set(
+        sessionId,
+        (cached?.messages ?? []).filter((m) => m.role === 'user').length,
+      );
 
       // Give every file attachment a real path before it reaches the
       // conversation: the card can then open the right panel, a reload can
@@ -890,8 +902,8 @@ export function Composer() {
       // sdk.chat.steer()/sdk.chat.followUp() and processed by the SDK's
       // internal queue. The SDK emits queue_update events that sync the UI.
     },
-    onError: (error: Error, variables) => {
-      const { sessionId } = variables;
+    onError: async (error: Error, variables) => {
+      const { sessionId, content, attachments, pluginMessage, replayTurn, branchFrom } = variables;
       const store = useComposerStore.getState();
       if (sessionId) {
         // User-initiated cancel via Stop: end the run without an error banner.
@@ -914,7 +926,29 @@ export function Composer() {
       // Re-reading makes the timeline show what is actually stored, whichever
       // way it went: no message if the send never left, the user's message if it
       // reached the model and the model refused.
-      void queryClient.invalidateQueries({ queryKey: ['session', sessionId] });
+      await queryClient.invalidateQueries({ queryKey: ['session', sessionId] });
+      const userTurnsBefore = userTurnsBeforeSendRef.current.get(sessionId) ?? 0;
+      userTurnsBeforeSendRef.current.delete(sessionId);
+
+      // A send that never left has nothing in the transcript to retry, and the
+      // composer cleared the box when it was submitted — the reader's words
+      // would exist nowhere. Hand them back, with their attachments, so the
+      // fix (设置 → 模型, a restart, a network that came back) is followed by
+      // Enter instead of by retyping. A plugin turn and a replay carry text
+      // that is already in the conversation, so they are left alone.
+      if (pluginMessage || replayTurn || branchFrom) return;
+      const messages = queryClient.getQueryData<{ messages?: { role?: string }[] }>(['session', sessionId])
+        ?.messages ?? [];
+      const userTurnsNow = messages.filter((m) => m.role === 'user').length;
+      if (userTurnsNow > userTurnsBefore) return;
+      if (useUIStore.getState().activeSessionId !== sessionId) return;
+
+      const composer = useComposerStore.getState();
+      // Never clobber anything the reader typed while the send was failing.
+      if (composer.value.trim() || composer.pendingAttachments.length > 0) return;
+      if (content.trim()) composer.setValue(content);
+      for (const attachment of attachments) composer.addAttachment(attachment);
+      if (content.trim() || attachments.length > 0) composer.setFailedDraftSession(sessionId);
     },
     onSettled: (_data, _error, variables) => {
       const { sessionId, attachments } = variables;

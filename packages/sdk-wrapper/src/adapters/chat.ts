@@ -527,6 +527,41 @@ function stepOffLeaf(session: AgentSession, entryId: string): void {
 }
 
 /**
+ * How long a replay waits for a still-active run to settle before giving up.
+ *
+ * The SDK retries a failed request on its own for a while, and the error chunk
+ * reaches the UI per attempt — so the error card can be on screen while the run
+ * is technically alive. A retry clicked in that window should wait, not fail.
+ */
+const REPLAY_IDLE_WAIT_MS = 30_000;
+
+/** What a replay needs of a session to wait for it. */
+type IdleWaitable = Pick<AgentSession, 'isStreaming' | 'waitForIdle'>;
+
+/**
+ * Wait until a replay may navigate the tree.
+ *
+ * pi refuses `navigateTree` while a run is active ("Wait for the current
+ * response to finish before navigating the session tree.") — a message about
+ * the SDK's internal state that a reader cannot act on, shown to someone who
+ * just clicked 重试 on an already-failed turn. The run it names is almost
+ * always the failed attempt still retrying behind the error card, so waiting
+ * is both correct and invisible; a run that is genuinely long-running gets a
+ * sentence that says what to do instead.
+ */
+export async function waitUntilReplayable(
+  session: IdleWaitable,
+  timeoutMs: number = REPLAY_IDLE_WAIT_MS,
+): Promise<void> {
+  if (!session.isStreaming) return;
+  await Promise.race([
+    session.waitForIdle(),
+    new Promise((resolve) => setTimeout(resolve, timeoutMs)),
+  ]);
+  if (session.isStreaming) throw new Error('上一轮还在进行中，请等它结束后再重试');
+}
+
+/**
  * Branch the tree and resolve what this send actually prompts with.
  *
  * Branching happens here, inside the send, rather than as a separate call the
@@ -567,6 +602,8 @@ async function prepareTurn(
   }
 
   stepOffLeaf(session, target);
+  // A replay navigates the tree, which the SDK refuses while a run is active.
+  await waitUntilReplayable(session);
   const navigation = await session.navigateTree(target);
   if (navigation.cancelled) throw new Error('无法在原对话位置创建新分支');
 

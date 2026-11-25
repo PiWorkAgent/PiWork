@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import {
   AudioLines,
   Cable,
@@ -11,7 +11,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useUIStore } from '@/stores/ui-store';
+import { useUIStore, type SettingsSection } from '@/stores/ui-store';
 import { useI18n, type MessageKey } from '@/i18n';
 import { hasVoiceApi } from '@/lib/voice/voice-client';
 import { hasStorageApi } from '@/lib/storage-client';
@@ -28,9 +28,7 @@ import { VoiceSettingsPage } from './voice-settings';
 import { McpSettingsPage } from './mcp-settings';
 import { AboutSettingsPage } from './about-settings';
 
-type SectionId = 'general' | 'models' | 'context' | 'storage' | 'voice' | 'tools' | 'skills' | 'mcp' | 'about';
-
-const SECTIONS: { id: SectionId; label: MessageKey; icon: typeof Cpu }[] = [
+const SECTIONS: { id: SettingsSection; label: MessageKey; icon: typeof Cpu }[] = [
   { id: 'general', label: '通用', icon: SlidersHorizontal },
   { id: 'models', label: '模型', icon: Cpu },
   { id: 'context', label: '上下文', icon: FileText },
@@ -61,7 +59,8 @@ export function SettingsDialog() {
   const open = useUIStore((s) => s.settingsOpen);
   const setSettingsOpen = useUIStore((s) => s.setSettingsOpen);
   const { t } = useI18n();
-  const [section, setSection] = useState<SectionId>('general');
+  const section = useUIStore((s) => s.settingsSection);
+  const setSection = useUIStore((s) => s.setSettingsSection);
 
   // ⌘, / Ctrl+, — the platform's settings shortcut, active while the shell
   // has focus. (A native plugin view is its own web contents, so a key pressed
@@ -90,7 +89,12 @@ export function SettingsDialog() {
       && (s.id !== 'mcp' || hasMcpApi())
       && (s.id !== 'about' || hasUpdateApi()),
   );
+  // The requested section may not exist here (the web build has no voice or
+  // about page). Everything below renders `active`, so an unavailable request
+  // lands on the first page instead of highlighting nothing and showing a
+  // blank body.
   const active = sections.find((s) => s.id === section) ?? sections[0];
+  const activeId = active.id;
 
   return (
     <Dialog open={open} onOpenChange={setSettingsOpen}>
@@ -119,13 +123,16 @@ export function SettingsDialog() {
               <button
                 key={id}
                 type="button"
-                aria-current={section === id ? 'true' : undefined}
+                // Opened from a failed run, the dialog lands on 模型 — and so
+                // does the focus, instead of the first row of the menu.
+                autoFocus={activeId === id}
+                aria-current={activeId === id ? 'true' : undefined}
                 data-settings-section={id}
                 onClick={() => setSection(id)}
                 className={cn(
                   'flex items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-sm transition-colors',
                   'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring',
-                  section === id
+                  activeId === id
                     ? 'bg-accent font-medium text-accent-foreground'
                     : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground',
                 )}
@@ -144,15 +151,15 @@ export function SettingsDialog() {
               <h2 className="text-sm font-semibold">{t(active.label)}</h2>
             </div>
             <div className="min-h-0 flex-1">
-              {section === 'general' && <GeneralSettingsPage />}
-              {section === 'models' && <ModelsSettingsPage />}
-              {section === 'context' && <ContextSettingsPage />}
-              {section === 'storage' && hasStorageApi() && <StorageSettingsPage />}
-              {section === 'voice' && hasVoiceApi() && <VoiceSettingsPage />}
-              {section === 'tools' && <ToolsSettingsPage />}
-              {section === 'skills' && <SkillsSettingsPage />}
-              {section === 'mcp' && hasMcpApi() && <McpSettingsPage />}
-              {section === 'about' && hasUpdateApi() && <AboutSettingsPage />}
+              {activeId === 'general' && <GeneralSettingsPage />}
+              {activeId === 'models' && <ModelsSettingsPage />}
+              {activeId === 'context' && <ContextSettingsPage />}
+              {activeId === 'storage' && hasStorageApi() && <StorageSettingsPage />}
+              {activeId === 'voice' && hasVoiceApi() && <VoiceSettingsPage />}
+              {activeId === 'tools' && <ToolsSettingsPage />}
+              {activeId === 'skills' && <SkillsSettingsPage />}
+              {activeId === 'mcp' && hasMcpApi() && <McpSettingsPage />}
+              {activeId === 'about' && hasUpdateApi() && <AboutSettingsPage />}
             </div>
           </div>
         </div>

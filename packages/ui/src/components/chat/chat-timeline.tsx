@@ -1,14 +1,13 @@
 import { useRef, useMemo, useState, useCallback, useEffect, useLayoutEffect } from 'react';
 import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { Virtuoso, VirtuosoHandle } from 'react-virtuoso';
-import { ArrowDown, AlertTriangle, RefreshCw, MessageSquare } from 'lucide-react';
+import { ArrowDown, MessageSquare } from 'lucide-react';
 import { useSDK } from '@/hooks/use-sdk';
 import { useUIStore } from '@/stores/ui-store';
 import { useBuiltinModelsQuery, useVoiceSettingsQuery, hasVoiceApi } from '@/lib/voice/voice-client';
 import { stopSpeaking, useVoicePlaybackStore } from '@/stores/voice-playback-store';
 import { useComposerStore } from '@/stores/composer-store';
 import { usePluginStore } from '@/stores/plugin-store';
-import { Button } from '@/components/ui/button';
 import { stripAppendedContext } from '@/lib/quote-helpers';
 import { activateSession } from '@/lib/window-actions';
 import { suppressedToolCards } from '@/lib/tool-card-collapse';
@@ -18,6 +17,7 @@ import { PluginMessageBubble } from './plugin-message-bubble';
 import { ChatMinimap } from './chat-minimap';
 import { EmptyChat, FailedSessionChat, NoWorkspaceChat, PreparingSessionChat } from './empty-chat';
 import { StreamingIndicator } from './streaming-indicator';
+import { StreamErrorMessage } from './stream-error-message';
 import { LoadingSpinner } from '@/components/common/loading-spinner';
 import { ErrorState } from '@/components/common/error-state';
 import type { Message, UserMessage, ContentBlock, TokenUsage, ToolCallBlock, PluginMessage, Attachment } from '@pi/types';
@@ -238,33 +238,6 @@ function PendingAskFallback({ hostedToolCallIds }: { hostedToolCallIds: Set<stri
 // Component
 // ----------------------------------------------------------------
 
-/**
- * The stream-error banner.
- *
- * Rendered by BOTH branches below, and that is the whole point. It used to sit
- * only in the populated branch, so a send that failed into an empty session
- * showed nothing at all: the failure emptied the timeline, the empty branch
- * returned early, and the banner went with it. "The model account is out of
- * credit" then looked exactly like "the send button does nothing".
- */
-function StreamErrorBanner({ error, onRetry }: { error: string; onRetry: () => void }) {
-  return (
-    <div className="flex items-center gap-3 mx-4 mt-3 px-4 py-3 rounded-lg border border-destructive/30 bg-destructive/10 text-sm">
-      <AlertTriangle className="h-4 w-4 text-destructive shrink-0" />
-      <span className="text-destructive flex-1">{error}</span>
-      <Button
-        size="sm"
-        variant="outline"
-        className="h-7 gap-1.5 text-xs border-destructive/30 hover:bg-destructive/10"
-        onClick={onRetry}
-      >
-        <RefreshCw className="h-3 w-3" />
-        Retry
-      </Button>
-    </div>
-  );
-}
-
 export function ChatTimeline() {
   const { t, language } = useI18n();
   const sdk = useSDK();
@@ -282,6 +255,8 @@ export function ChatTimeline() {
   const messageTiming = useComposerStore((s) => s.messageTiming);
   const toolTimings = useComposerStore((s) => s.toolTimings);
   const streamError = useComposerStore((s) => s.streamError);
+  const failedDraftSessionId = useComposerStore((s) => s.failedDraftSessionId);
+  const composerDraft = useComposerStore((s) => s.value);
   const scrollToBottomTrigger = useComposerStore((s) => s.scrollToBottomTrigger);
   const setTriggerSend = useComposerStore((s) => s.setTriggerSend);
   const setPendingBranch = useComposerStore((s) => s.setPendingBranch);
@@ -584,6 +559,14 @@ export function ChatTimeline() {
     });
   }, [chatItems]);
 
+  // A failure lands in the list's footer, after the last message. Someone who
+  // had scrolled up would otherwise see the send stop with no explanation —
+  // the exact confusion the error card exists to end.
+  useEffect(() => {
+    if (!streamError) return;
+    virtuosoRef.current?.scrollToIndex({ index: 'LAST', align: 'end' });
+  }, [streamError]);
+
   const lastMessage = messages[messages.length - 1];
   const showStreamingIndicator =
     isStreaming && !streamingBlocks.length && lastMessage?.role === 'user';
@@ -690,11 +673,28 @@ export function ChatTimeline() {
    * simply sent again.
    */
   const handleRetry = () => {
+    // A run is still alive (the agent reports failed attempts as it retries
+    // them). Replaying now would stack a second turn on the first — main
+    // refuses it, and the refusal is what the reader sees instead. The card
+    // shows 正在重试… in that state; this guard covers the click that races it.
+    if (isStreaming) return;
+    if (!activeSessionId) return;
+
+    // The failure never reached the session, so its text is sitting in the
+    // composer: sending that box again is the retry. Replaying the previous
+    // stored turn instead would answer a different message.
+    if (failedDraftSessionId === activeSessionId && composerDraft.trim()) {
+      const pending = useComposerStore.getState().pendingAttachments;
+      setTriggerSend(composerDraft, undefined, pending.length > 0 ? { attachments: pending } : undefined);
+      useComposerStore.getState().clearAttachments();
+      return;
+    }
+
     const all = session?.messages ?? [];
     let index = all.length - 1;
     while (index >= 0 && all[index].role !== 'user') index--;
     const userMessage = index >= 0 ? all[index] : undefined;
-    if (!userMessage || !activeSessionId) return;
+    if (!userMessage) return;
     if (userMessage.entryId) {
       replayTurn(userMessage as UserMessage, index);
       return;
@@ -775,6 +775,16 @@ export function ChatTimeline() {
     return null;
   }, [messages]);
 
+  // Retry re-sends a turn, but which turn depends on how the last send failed:
+  // one that reached the session is replayed from the transcript, while one
+  // that never left exists only in the composer, where the failure put it back.
+  // Either way there is something to send — that is what `canRetry` answers.
+  const draftRetryable = failedDraftSessionId === activeSessionId && composerDraft.trim().length > 0;
+  const canRetry = useMemo(
+    () => draftRetryable || messages.some((item) => item.role === 'user'),
+    [draftRetryable, messages],
+  );
+
   // Scroll to bottom
   const scrollToBottom = () => {
     virtuosoRef.current?.scrollToIndex({
@@ -803,29 +813,38 @@ export function ChatTimeline() {
   if (!session) return <EmptyChat />;
 
   // ----- Empty session guidance -----
+  // A failed send that never reached the session file has no messages to put
+  // an error card after — but "nothing happened" is exactly what that failure
+  // must not look like. The card takes the transcript's place, and the
+  // greeting steps aside rather than sitting under it as a second, brighter
+  // thing to read.
   if (messages.length === 0 && !isStreaming) {
     return (
       <div className="flex flex-1 flex-col">
-        {/* A send that failed before anything landed leaves an empty timeline —
-            and this branch is where that failure has to be visible. */}
-        {streamError && <StreamErrorBanner error={streamError} onRetry={handleRetry} />}
-        <div className="flex flex-1 flex-col items-center justify-center gap-4 p-8">
-          <MessageSquare className="h-8 w-8 text-muted-foreground/60" strokeWidth={1.5} />
-          <div className="text-center">
-            <h3 className="text-lg font-medium">{t('开始一段对话')}</h3>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {t('在下方输入消息，开始与 AI 助手协作。')}
-            </p>
+        {streamError ? (
+          <StreamErrorMessage
+            error={streamError}
+            busy={isStreaming}
+            draftRestored={draftRetryable}
+            onRetry={canRetry ? handleRetry : undefined}
+          />
+        ) : (
+          <div className="flex flex-1 flex-col items-center justify-center gap-4 p-8">
+            <MessageSquare className="h-8 w-8 text-muted-foreground/60" strokeWidth={1.5} />
+            <div className="text-center">
+              <h3 className="text-lg font-medium">{t('开始一段对话')}</h3>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {t('在下方输入消息，开始与 AI 助手协作。')}
+              </p>
+            </div>
           </div>
-        </div>
+        )}
       </div>
     );
   }
 
   return (
     <div className="flex flex-col flex-1 relative">
-      {streamError && <StreamErrorBanner error={streamError} onRetry={handleRetry} />}
-
       <div
         className="relative flex-1"
         onPointerEnter={() => setMinimapActive(true)}
@@ -895,10 +914,22 @@ export function ChatTimeline() {
             );
           }}
           components={{
-            Footer: () =>
-              showStreamingIndicator ? (
-                <StreamingIndicator />
-              ) : null,
+            // After the last message, inside the scroller — a failed run reads
+            // as the turn it failed and scrolls with the transcript, instead
+            // of hovering over it as a banner.
+            Footer: () => (
+              <>
+                {showStreamingIndicator && <StreamingIndicator />}
+                {streamError && (
+                  <StreamErrorMessage
+                    error={streamError}
+                    busy={isStreaming}
+                    draftRestored={draftRetryable}
+                    onRetry={canRetry ? handleRetry : undefined}
+                  />
+                )}
+              </>
+            ),
           }}
         />
         <ChatMinimap

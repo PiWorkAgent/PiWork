@@ -46,6 +46,18 @@ export async function openPreviewFile(path: string): Promise<void> {
 
 type ConnectionStatus = 'connected' | 'disconnected' | 'connecting';
 
+/** The settings sections the dialog's side menu can show. */
+export type SettingsSection =
+  | 'general'
+  | 'models'
+  | 'context'
+  | 'storage'
+  | 'voice'
+  | 'tools'
+  | 'skills'
+  | 'mcp'
+  | 'about';
+
 interface UIState {
   activeWorkspaceId: string | null;
   activeSessionId: string | null;
@@ -74,6 +86,12 @@ interface UIState {
    * otherwise cover the dialog and swallow its clicks.
    */
   settingsOpen: boolean;
+  /**
+   * The section the dialog shows. It lives here, not in the dialog, because
+   * entry points other than the rail open it at a specific page — a failed run
+   * with no model configured opens 设置 → 模型 directly.
+   */
+  settingsSection: SettingsSection;
   rightPanelWidth: number;
   leftPanelWidth: number;
   compactMode: boolean;
@@ -113,8 +131,9 @@ interface UIState {
   toggleRightPanel: () => void;
   toggleCenterPanel: () => void;
   toggleChatSide: () => void;
-  openSettings: () => void;
+  openSettings: (section?: SettingsSection) => void;
   setSettingsOpen: (open: boolean) => void;
+  setSettingsSection: (section: SettingsSection) => void;
   setSidebarOpen: (open: boolean) => void;
   setRightPanelOpen: (open: boolean) => void;
   setCenterPanelOpen: (open: boolean) => void;
@@ -136,6 +155,7 @@ export const useUIStore = create<UIState>()(
       centerPanelOpen: true,
       chatRightOfPanels: false,
       settingsOpen: false,
+      settingsSection: 'general',
       rightPanelWidth: 600,
       // A comfortable width for the session list and file tree, and the width
       // the column is dragged from.
@@ -203,8 +223,10 @@ export const useUIStore = create<UIState>()(
       // while maximized reveals the chat by dropping the maximize.
       toggleCenterPanel: () => set((s) => ({ centerPanelOpen: !s.centerPanelOpen })),
       toggleChatSide: () => set((s) => ({ chatRightOfPanels: !s.chatRightOfPanels })),
-      openSettings: () => set({ settingsOpen: true }),
+      openSettings: (section) =>
+        set(section ? { settingsOpen: true, settingsSection: section } : { settingsOpen: true }),
       setSettingsOpen: (open) => set({ settingsOpen: open }),
+      setSettingsSection: (section) => set({ settingsSection: section }),
       setSidebarOpen: (open) => set({ sidebarOpen: open }),
       setRightPanelOpen: (open) => set({ rightPanelOpen: open }),
       setCenterPanelOpen: (open) => set({ centerPanelOpen: open }),

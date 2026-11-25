@@ -20,8 +20,12 @@ interface CustomProvidersSectionProps {
   onDeleteModel: (providerName: string, modelId: string) => void;
 }
 
-function maskApiKey(key: string): string {
-  if (key.length <= 8) return '****';
+/**
+ * A provider may have no key at all — that is the very state that sends people
+ * here, and reading `.length` off it took the whole settings dialog down.
+ */
+function maskApiKey(key: string | undefined): string {
+  if (!key || key.length <= 8) return '****';
   return key.slice(0, 4) + '****' + key.slice(-4);
 }
 
@@ -121,21 +125,27 @@ export function CustomProvidersSection({
                       className="min-w-0 break-all rounded bg-muted px-1 text-[0.625rem]"
                       title={provider.apiKey}
                     >
-                      {visibleKeys.has(name) ? provider.apiKey : maskApiKey(provider.apiKey)}
+                      {provider.apiKey
+                        ? visibleKeys.has(name)
+                          ? provider.apiKey
+                          : maskApiKey(provider.apiKey)
+                        : t('未填写 API Key')}
                     </code>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-5 w-5 shrink-0"
-                      aria-label={t('显示 API Key')}
-                      onClick={() => onToggleKey(name)}
-                    >
-                      {visibleKeys.has(name) ? (
-                        <EyeOff className="h-3 w-3" />
-                      ) : (
-                        <Eye className="h-3 w-3" />
-                      )}
-                    </Button>
+                    {provider.apiKey && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-5 w-5 shrink-0"
+                        aria-label={t('显示 API Key')}
+                        onClick={() => onToggleKey(name)}
+                      >
+                        {visibleKeys.has(name) ? (
+                          <EyeOff className="h-3 w-3" />
+                        ) : (
+                          <Eye className="h-3 w-3" />
+                        )}
+                      </Button>
+                    )}
                   </div>
                 </div>
               </CardHeader>
