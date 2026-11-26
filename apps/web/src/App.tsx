@@ -57,6 +57,10 @@ function AppContent() {
   const rightPanelOpen = useUIStore((s) => s.rightPanelOpen);
   const centerPanelOpen = useUIStore((s) => s.centerPanelOpen);
   const chatRightOfPanels = useUIStore((s) => s.chatRightOfPanels);
+  // The chat and the panel both put away, the sidebar left on its own. Its
+  // header then carries the column toggles: at the band's far end they would
+  // be floating over nothing.
+  const sidebarOnly = sidebarOpen && !centerPanelOpen && !rightPanelOpen;
   const rightPanelWidth = useUIStore((s) => s.rightPanelWidth);
   const setRightPanelWidth = useUIStore((s) => s.setRightPanelWidth);
   const leftPanelWidth = useUIStore((s) => s.leftPanelWidth);
@@ -103,6 +107,7 @@ function AppContent() {
               <>
                 <WorkspaceDropdown />
                 <WorkspaceCreateButton />
+                {sidebarOnly && <LayoutToggles />}
               </>
             ) : null
           }
@@ -121,7 +126,7 @@ function AppContent() {
             </>
           }
           rightHeader={<PanelTabs />}
-          headerTrailing={<LayoutToggles />}
+          headerTrailing={sidebarOnly ? null : <LayoutToggles />}
           rightPanel={<PanelHost rail={false} />}
           leftSidebar={
             <LeftSidebar>

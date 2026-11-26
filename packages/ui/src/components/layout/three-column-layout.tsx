@@ -56,12 +56,12 @@ interface ThreeColumnLayoutProps {
   rightPanelOpen?: boolean;
   sidebarOpen?: boolean;
   /**
-   * What the body shows when no work column is open — the chat and the panel
-   * both put away. Without it the window is a sidebar beside a white void with
-   * a title bar, which reads as a broken app rather than as a state.
+   * What the body shows when EVERY column has been put away — the sidebar
+   * included. Without it the window is a white void with a title bar, which
+   * reads as a broken app rather than as a state.
    *
-   * The sidebar does not count: it never fills the row, so with it alone the
-   * rest of the window would simply be empty.
+   * A sidebar on its own is not this state: it keeps its own column and its
+   * header carries the toggles back (see the host's `leftHeader`).
    */
   blankState?: ReactNode;
   /**
@@ -775,11 +775,11 @@ export function ThreeColumnLayout({
           centre keeps its composer and the right column keeps its live views
           mounted across a swap. */}
       <div className="flex min-h-0 flex-1 overflow-hidden">
-        {/* No work column open: the row has nothing to divide, so the host's
-            blank state takes everything the sidebar leaves. The columns below
-            stay mounted (hidden) either way. It carries the centre's `order`
-            so it lands after the sidebar instead of pushing it right. */}
-        {!centerPanelOpen && !rightPanelOpen && blankState != null && (
+        {/* Nothing opened at all: the row has no columns to divide, so the
+            host's blank state takes the whole body. The columns below stay
+            mounted (hidden) either way. It carries the centre's `order` so it
+            lands after the sidebar instead of pushing it right. */}
+        {!sidebarOpen && !centerPanelOpen && !rightPanelOpen && blankState != null && (
           <div className="flex min-h-0 flex-1 overflow-hidden" style={{ order: order.center }}>
             {blankState}
           </div>
