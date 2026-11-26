@@ -62,7 +62,7 @@ export type { RegisteredCommand } from './stores/command-store';
 export { useSDK, SDKProvider } from './hooks/use-sdk';
 export { useTheme } from './hooks/use-theme';
 
-export { AppShell, ThreeColumnLayout, LeftSidebar, CenterPanel, LayoutToggles, getHostChrome } from './components/layout';
+export { AppShell, ThreeColumnLayout, LeftSidebar, CenterPanel, LayoutToggles, EmptyWorkbench, getHostChrome } from './components/layout';
 export type { HostChrome, HostPlatform } from './components/layout';
 export { WorkspaceDropdown, WorkspaceCreateButton } from './components/workspace';
 export { SessionList, SessionItem, SessionCreateButton, SessionHeader } from './components/session';

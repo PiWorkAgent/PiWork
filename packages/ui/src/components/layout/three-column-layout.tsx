@@ -56,6 +56,12 @@ interface ThreeColumnLayoutProps {
   rightPanelOpen?: boolean;
   sidebarOpen?: boolean;
   /**
+   * What the body shows when every column has been put away. Without it the
+   * window is a white void with a title bar, which reads as a broken app
+   * rather than as a state — and there is nothing on screen to get back from.
+   */
+  blankState?: ReactNode;
+  /**
    * Hide the centre chat column. CSS-hidden, never unmounted: the centre owns
    * the composer, and a plugin `chat.send` from a fullscreen panel must still
    * reach it.
@@ -199,6 +205,7 @@ export function ThreeColumnLayout({
   minCenterWidth = 360,
   rightPanelOpen = true,
   sidebarOpen = true,
+  blankState,
   centerPanelOpen = true,
   chatRight = false,
   onSidebarCollapse,
@@ -765,6 +772,12 @@ export function ThreeColumnLayout({
           centre keeps its composer and the right column keeps its live views
           mounted across a swap. */}
       <div className="flex min-h-0 flex-1 overflow-hidden">
+        {/* Nothing opened at all: the row has no columns to divide, so the
+            host's blank state takes the whole body. The columns below stay
+            mounted (hidden) either way. */}
+        {!sidebarOpen && !centerPanelOpen && !rightPanelOpen && blankState != null && (
+          <div className="flex min-h-0 flex-1 overflow-hidden">{blankState}</div>
+        )}
         {/* Hidden, not unmounted, when collapsed — the sidebar hosts the left
             PanelHost, whose keepAlive:'always' panels (session list, file
             tree, settings forms) must survive a collapse/expand cycle with

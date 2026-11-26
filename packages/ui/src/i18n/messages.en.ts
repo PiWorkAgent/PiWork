@@ -223,6 +223,15 @@ export const EN_MESSAGES = {
   面板: 'panel',
   对话: 'chat',
 
+  // ── Empty workbench (every column hidden) ──
+  '闲着也是闲着，吃掉几个 token': 'Nothing to work on — eat a few tokens',
+  '吃 token：用方向键操控的小蛇': 'Eat tokens: a snake steered with the arrow keys',
+  '按方向键开始，空格也可以': 'Press an arrow key to start — space works too',
+  空格暂停: 'Space pauses',
+  '已暂停，空格继续': 'Paused — space to resume',
+  '上下文溢出了，空格重来': 'Context overflow — space to play again',
+  'LV {level} · 本局 {score} · 最高 {best}': 'LV {level} · this run {score} · best {best}',
+
   // ── Host panels ──
   会话: 'Sessions',
   文件: 'Files',

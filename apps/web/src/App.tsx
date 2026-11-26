@@ -12,6 +12,7 @@ import {
 import { AppShell } from '@pi/ui';
 import { LayoutToggles, PanelTabs } from '@pi/ui';
 import { ThreeColumnLayout } from '@pi/ui';
+import { EmptyWorkbench } from '@pi/ui';
 import { LeftSidebar } from '@pi/ui';
 import { CenterPanel } from '@pi/ui';
 import { PanelHost } from '@pi/ui';
@@ -83,6 +84,9 @@ function AppContent() {
           sidebarOpen={sidebarOpen}
           rightPanelOpen={rightPanelOpen}
           centerPanelOpen={centerPanelOpen}
+          // Every column put away leaves nothing to look at. That blank body
+          // is a place to rest rather than a broken window.
+          blankState={<EmptyWorkbench />}
           chatRight={chatRightOfPanels}
           onSidebarCollapse={() => useUIStore.getState().setSidebarOpen(false)}
           onRightPanelCollapse={() => useUIStore.getState().setRightPanelOpen(false)}
