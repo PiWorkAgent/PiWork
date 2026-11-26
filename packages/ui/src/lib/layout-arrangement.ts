@@ -91,6 +91,10 @@ export function columnSlots(shape: RowShape): { chat: ColumnSlot; panel: ColumnS
     ? { panel: first, chat: 'right' as ColumnSlot }
     : { chat: first, panel: 'right' as ColumnSlot };
   if (shape.centerPanelOpen && shape.rightPanelOpen) return both;
+  // Nothing on screen: name each column for where it lands once both are
+  // open. "The middle one" twice in a row is not a choice, and a restore
+  // button should point past the state it is restoring from.
+  if (!shape.centerPanelOpen && !shape.rightPanelOpen) return both;
   // Only one is on screen: it spans the whole work area, so the middle is the
   // honest name for it.
   return shape.centerPanelOpen

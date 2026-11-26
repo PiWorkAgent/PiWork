@@ -487,7 +487,10 @@ function AppContent() {
                   <WorkspaceCreateButton />
                 </>
               )}
-              <SessionHeader />
+              {/* The session title belongs to the chat column: with that
+                  column put away the band must not go on showing its
+                  contents. */}
+              {centerPanelOpen && <SessionHeader />}
             </>
           }
           rightHeader={<PanelTabs />}

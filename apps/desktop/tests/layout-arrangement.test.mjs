@@ -180,6 +180,18 @@ test('a column that has the work area to itself is the middle one', () => {
   assert.equal(columnSlots(shape({ sidebarOpen: false, rightPanelOpen: false })).chat, 'center');
 });
 
+test('with nothing open, each restore button names where its column lands', () => {
+  const closed = { rightPanelOpen: false, centerPanelOpen: false };
+  assert.deepEqual(columnSlots(shape(closed)), { chat: 'center', panel: 'right' });
+  assert.deepEqual(
+    columnSlots(shape({ ...closed, chatRight: true })),
+    { panel: 'center', chat: 'right' },
+  );
+  // Two buttons labelled "the middle one" would be a guess, not a position.
+  const { chat, panel } = columnSlots(shape(closed));
+  assert.notEqual(chat, panel);
+});
+
 test('a hidden column is named for the side it will take back', () => {
   // Panel closed: it reopens on the side the preference puts it.
   assert.equal(columnSlots(shape({ rightPanelOpen: false })).panel, 'right');
