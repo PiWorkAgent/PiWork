@@ -592,6 +592,11 @@ export function ThreeColumnLayout({
   // collapse to just the sidebar.
   const rightTakesCenter = !centerPanelOpen && rightPanelOpen;
 
+  // The sidebar is the last column left. It is the one column that never
+  // stretches, so with nothing else open the rest of the window would be a
+  // panel-shaped void — let it take the space instead.
+  const sidebarOnly = sidebarOpen && !centerPanelOpen && !rightPanelOpen;
+
   const beginDrag = useCallback(
     (side: 'left' | 'right') => {
       // A settle left over from the previous gesture must not land in the
@@ -660,8 +665,15 @@ export function ThreeColumnLayout({
         {sidebarOpen && (
           <>
             <div
-              className="flex h-full min-w-0 shrink-0 items-center overflow-hidden border-r bg-sidebar"
-              style={{ width: currentLeftWidth, paddingLeft: insetLeft, transition: widthTransition }}
+              className={cn(
+                'flex h-full min-w-0 items-center overflow-hidden border-r bg-sidebar',
+                sidebarOnly ? 'flex-1' : 'shrink-0',
+              )}
+              style={
+                sidebarOnly
+                  ? { paddingLeft: insetLeft }
+                  : { width: currentLeftWidth, paddingLeft: insetLeft, transition: widthTransition }
+              }
             >
               {leftHeader != null && (
                 <div className="flex min-w-0 items-center gap-0.5">
@@ -669,11 +681,16 @@ export function ThreeColumnLayout({
                 </div>
               )}
             </div>
-            {/* Left divider continuation — same x as the body separator. */}
-            <div className="w-1 shrink-0" aria-hidden />
+            {/* Left divider continuation — same x as the body separator. With
+                the sidebar alone there is nothing to divide, and the body's
+                handle is gone too. */}
+            {!sidebarOnly && <div className="w-1 shrink-0" aria-hidden />}
           </>
         )}
-        {!rightTakesCenter && (
+        {/* The centre band segment is the chat's; with the sidebar alone there
+            is no centre to divide, and a second flex-1 sibling would split the
+            band in half. */}
+        {!rightTakesCenter && !sidebarOnly && (
           <div
             className="flex h-full min-w-0 flex-1 items-center overflow-hidden"
             style={{
@@ -792,16 +809,21 @@ export function ThreeColumnLayout({
         <div
           style={{
             order: order.sidebar,
-            ...(sidebarOpen ? { width: currentLeftWidth, transition: widthTransition } : undefined),
+            ...(sidebarOpen
+              ? sidebarOnly
+                ? undefined
+                : { width: currentLeftWidth, transition: widthTransition }
+              : undefined),
           }}
           className={cn(
-            'shrink-0 overflow-hidden border-r',
+            'overflow-hidden border-r',
+            sidebarOnly ? 'min-w-0 flex-1' : 'shrink-0',
             !sidebarOpen && 'hidden',
           )}
         >
           {leftSidebar}
         </div>
-        {sidebarOpen && (
+        {sidebarOpen && !sidebarOnly && (
           <div
             role="separator"
             tabIndex={0}
