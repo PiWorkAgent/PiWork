@@ -113,9 +113,10 @@ export function LayoutToggles() {
   // no right-region panels, so a right toggle there would open an empty column.
   const hasRightPanels = panels.some((p) => p.region === 'right' && !p.hidden);
 
-  // Swapping sides is defined for the two-column workbench only: with the
-  // sidebar open the chat cannot cross it, so the control would be a no-op.
-  const canSwapSides = !sidebarOpen && rightPanelOpen && centerPanelOpen;
+  // The two columns that can trade places are the chat and the work panel.
+  // The sidebar is the platform's left rail and never moves; with it open the
+  // chat moves out to the far edge instead of crossing it.
+  const canSwapSides = rightPanelOpen && centerPanelOpen;
 
   // The right rail is only rendered while the sidebar is open, so a badge or
   // unread dot on a panel of a collapsed sidebar would otherwise be invisible.

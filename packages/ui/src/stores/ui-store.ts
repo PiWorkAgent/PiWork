@@ -71,11 +71,10 @@ interface UIState {
    */
   centerPanelOpen: boolean;
   /**
-   * Put the chat to the RIGHT of the plugin panel in the two-column
-   * workbench (sidebar closed). People who drive the panel — browser, viewer,
-   * a document — read it as the primary surface and want the conversation as
-   * a side column; three columns keep the standard order, because the
-   * sidebar is the platform's left rail and the chat never crosses it.
+   * Put the chat to the RIGHT of the work panel. People who drive the panel —
+   * browser, viewer, a document — read it as the primary surface and want the
+   * conversation as a side column. The sidebar is the platform's left rail
+   * and never moves, so with it open this reads sidebar | panel | chat.
    */
   chatRightOfPanels: boolean;
   /**

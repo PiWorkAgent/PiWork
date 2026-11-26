@@ -4,6 +4,7 @@ import { useUIStore } from '@/stores/ui-store';
 import { useFreezeStore, type FreezeLayer } from '@/stores/overlay-freeze-store';
 import { t as translate } from '@/i18n';
 import { instanceIdOfTab } from '@/stores/panel-store';
+import { LAYOUT_SHIFT_EVENT, isPanelFirst } from '@/lib/layout-arrangement';
 
 /**
  * Live slot: a native WebContentsView mount point. The component
@@ -61,14 +62,18 @@ export function LiveSlot({
   // reachable from layout-driven re-measures (a column swap moves this slot
   // without resizing it).
   const reportBoundsRef = useRef<() => void>(() => {});
-  // Which side the chat is on. A swap reorders the columns, which moves this
-  // slot's rect without changing its size — ResizeObserver cannot see that,
-  // and the native view would stay behind over the chat.
-  const chatRight = useUIStore((s) => s.chatRightOfPanels);
-  const sidebarOpen = useUIStore((s) => s.sidebarOpen);
-  // Same rule the layout applies: the swap only takes effect with the sidebar
-  // closed. Opening the sidebar therefore moves the columns too.
-  const swapped = chatRight && !sidebarOpen;
+  // Which side of the chat this column sits on. A swap reorders the columns,
+  // which moves this slot's rect without changing its size — ResizeObserver
+  // cannot see that, and the native view would stay behind over the chat.
+  // The layout uses the same function, so the two cannot disagree.
+  const panelFirst = useUIStore((s) =>
+    isPanelFirst({
+      sidebarOpen: s.sidebarOpen,
+      rightPanelOpen: s.rightPanelOpen,
+      centerPanelOpen: s.centerPanelOpen,
+      chatRight: s.chatRightOfPanels,
+    }),
+  );
   // Which conversation is on screen. Sent alongside (never inside) the open
   // params — params is a store reference, and folding the session into it
   // would change that reference on every switch. Re-firing on session change
@@ -253,7 +258,16 @@ export function LiveSlot({
   // must re-show the view at its real bounds.
   useLayoutEffect(() => {
     reportBoundsRef.current();
-  }, [swapped, slotId, settingsOpen]);
+  }, [panelFirst, slotId, settingsOpen]);
+
+  // The panel can also move WITHOUT the arrangement changing: while it sits in
+  // front of the chat, opening or resizing the sidebar shifts it sideways at
+  // the same width. The layout announces those moves before paint.
+  useEffect(() => {
+    const remeasure = () => reportBoundsRef.current();
+    window.addEventListener(LAYOUT_SHIFT_EVENT, remeasure);
+    return () => window.removeEventListener(LAYOUT_SHIFT_EVENT, remeasure);
+  }, []);
 
   // Frozen frame for a floating menu.
   //

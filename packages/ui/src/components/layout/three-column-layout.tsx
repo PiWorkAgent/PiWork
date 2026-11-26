@@ -1,8 +1,17 @@
 'use client';
 
-import { useEffect, useRef, useState, useCallback, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, useCallback, type CSSProperties, type ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 import { useI18n } from '@/i18n';
+import {
+  DIVIDER_WIDTH,
+  dividerCenterX,
+  isPanelFirst,
+  notifyLayoutShift,
+  panelLeftOffset,
+  panelWidthAtPointer,
+  rowOrder,
+} from '@/lib/layout-arrangement';
 import { getHostChrome, DRAG, NO_DRAG, WindowControls } from './title-bar';
 
 interface ThreeColumnLayoutProps {
@@ -53,10 +62,10 @@ interface ThreeColumnLayoutProps {
    */
   centerPanelOpen?: boolean;
   /**
-   * Mirror the two visible columns: the panel keeps the left edge and the
-   * chat takes the right. Applied only while the sidebar is closed — the chat
-   * cannot cross the sidebar (they share one flex wrapper), and the sidebar
-   * stays the platform's left rail.
+   * The work panel takes the left edge and the chat the right. The sidebar is
+   * the platform's left rail and never moves, so with it open the row reads
+   * sidebar | panel | chat and with it closed the two visible columns simply
+   * trade places.
    */
   chatRight?: boolean;
   /**
@@ -69,9 +78,6 @@ interface ThreeColumnLayoutProps {
   onRightPanelCollapse?: () => void;
   onCenterCollapse?: () => void;
 }
-
-/** Width of each resize divider (matches the `w-1` handles below). */
-const DIVIDER_WIDTH = 4;
 
 /**
  * Past a column's floor the column still follows the pointer, at this rate.
@@ -264,15 +270,32 @@ export function ThreeColumnLayout({
   const insetLeft = fullscreen ? 0 : chrome.insetLeft / zoom;
   const insetRight = fullscreen ? 0 : chrome.insetRight / zoom;
 
-  // Two visible columns, chat on the right of the panel. Only that state has a
-  // defined other side: with the sidebar open the chat cannot cross it (they
-  // are one flex wrapper), so the preference lies dormant rather than
-  // reordering three columns behind the user's back.
+  // The panel in front of the chat. With the sidebar closed that is the two
+  // visible columns trading places; with it open the chat moves out to the far
+  // edge and the sidebar keeps the left one. The preference is never dormant —
+  // every shape of the row has a defined other side.
   //
   // The columns are moved with CSS `order`, never by changing DOM order: the
   // centre owns the composer and the right column owns the native views, and
   // a reorder in the tree would remount both.
-  const swapped = chatRight && !sidebarOpen && rightPanelOpen && centerPanelOpen;
+  const shape = { sidebarOpen, rightPanelOpen, centerPanelOpen, chatRight };
+  const panelFirst = isPanelFirst(shape);
+  const order = rowOrder(shape);
+  /** x of the panel's outer edge — 0, or just past the sidebar. */
+  const panelLeft = panelLeftOffset(sidebarOpen, currentLeftWidth);
+
+  // A native view is positioned in window coordinates. With the panel in front
+  // of the chat, resizing or toggling the sidebar SHIFTS it without changing
+  // its width — invisible to the slots' ResizeObserver, which would leave the
+  // view hovering over the wrong column. Announce the move before paint; the
+  // mounted slots re-measure.
+  const panelShift = panelFirst ? panelLeft : null;
+  const lastPanelShift = useRef<number | null>(panelShift);
+  useLayoutEffect(() => {
+    if (lastPanelShift.current === panelShift) return;
+    lastPanelShift.current = panelShift;
+    notifyLayoutShift();
+  }, [panelShift]);
 
   // The trailing zone (layout toggles) is pinned absolutely at the band's
   // top-right — in flow it would eat its 100-odd px out of the flex-1 centre
@@ -322,7 +345,7 @@ export function ThreeColumnLayout({
   const maxRightWidthNow = useCallback(() => {
     const width = containerRef.current?.getBoundingClientRect().width;
     if (width === undefined) return maxRightWidth;
-    const leftColumn = sidebarOpen ? currentLeftWidth + DIVIDER_WIDTH : 0;
+    const leftColumn = panelLeftOffset(sidebarOpen, currentLeftWidth);
     const centre = centerPanelOpen ? minCenterWidth : 0;
     const cap = width - leftColumn - DIVIDER_WIDTH - centre;
     return Math.max(minRightWidth, Math.min(maxRightWidth, cap));
@@ -374,7 +397,7 @@ export function ThreeColumnLayout({
    */
   const fullPanelWidth = useCallback(() => {
     const width = containerRef.current?.getBoundingClientRect().width ?? containerWidth;
-    const leftColumn = sidebarOpen ? currentLeftWidth + DIVIDER_WIDTH : 0;
+    const leftColumn = panelLeftOffset(sidebarOpen, currentLeftWidth);
     return Math.max(minRightWidth, width - leftColumn - DIVIDER_WIDTH);
   }, [containerWidth, sidebarOpen, currentLeftWidth, minRightWidth]);
 
@@ -456,7 +479,17 @@ export function ThreeColumnLayout({
       if (!dragging || !containerRef.current) return;
       const rect = containerRef.current.getBoundingClientRect();
       const x = e.clientX - rect.left;
-      rawWidthRef.current = dragging === 'left' ? x : swapped ? x : rect.width - x;
+      // The divider is the panel's chat-facing edge, so the pointer maps to a
+      // width differently depending on which edge the panel is anchored to.
+      rawWidthRef.current =
+        dragging === 'left'
+          ? x
+          : panelWidthAtPointer({
+              x,
+              rowWidth: rect.width,
+              leftOffset: panelLeftOffset(sidebarOpen, leftWidthRef.current),
+              panelFirst,
+            });
       const raw = rawWidthRef.current;
       setClosing(collapseTargetFor(dragging, raw));
 
@@ -485,7 +518,8 @@ export function ThreeColumnLayout({
     },
     [
       dragging,
-      swapped,
+      panelFirst,
+      sidebarOpen,
       minLeftWidth,
       maxLeftWidth,
       minRightWidth,
@@ -572,9 +606,12 @@ export function ThreeColumnLayout({
     ? 0
     : closing === 'sidebar'
       ? currentLeftWidth + DIVIDER_WIDTH / 2
-      : swapped
-        ? currentRightWidth + DIVIDER_WIDTH / 2
-        : containerWidth - currentRightWidth - DIVIDER_WIDTH / 2;
+      : dividerCenterX({
+          rowWidth: containerWidth,
+          panelWidth: currentRightWidth,
+          leftOffset: panelLeft,
+          panelFirst,
+        });
   const hintLabel =
     closing === 'sidebar' ? t('左侧栏') : closing === 'panel' ? t('面板') : t('对话');
 
@@ -630,11 +667,12 @@ export function ThreeColumnLayout({
           <div
             className="flex h-full min-w-0 flex-1 items-center overflow-hidden"
             style={{
-              order: swapped ? 2 : 0,
-              // Leftmost segment carries the traffic-light inset, rightmost
-              // reserves the toggles zone — both follow the swap.
-              paddingLeft: sidebarOpen || swapped ? 0 : insetLeft,
-              paddingRight: swapped || !rightPanelOpen ? trailingReserve : 0,
+              order: order.center,
+              // The leftmost segment carries the traffic-light inset, the
+              // rightmost reserves the toggles zone — both follow the row's
+              // order, so the chat picks them up when it takes an edge.
+              paddingLeft: sidebarOpen || panelFirst ? 0 : insetLeft,
+              paddingRight: panelFirst || !rightPanelOpen ? trailingReserve : 0,
             }}
           >
             {centerHeader != null && (
@@ -652,7 +690,7 @@ export function ThreeColumnLayout({
             width={currentRightWidth}
             minWidth={minRightWidth}
             maxWidth={maxRightWidthNow()}
-            order={swapped ? 1 : 0}
+            order={order.rightDivider}
             hot={closing === 'panel' || closing === 'center'}
             onDragStart={() => beginDrag('right')}
             onKeyboardResize={handleKeyboardResize}
@@ -665,20 +703,20 @@ export function ThreeColumnLayout({
               rightTakesCenter ? 'flex-1' : 'shrink-0',
             )}
             style={{
-              order: swapped ? 0 : undefined,
+              order: order.right,
               width: rightTakesCenter ? undefined : currentRightWidth,
               transition: rightTakesCenter ? undefined : widthTransition,
-              // Swapped → this segment is the leftmost column and takes the
-              // traffic-light inset; otherwise the chat's segment keeps it.
+              // The panel is the leftmost segment when it sits in front of the
+              // chat with no sidebar in front of it.
               paddingLeft:
-                (rightTakesCenter || swapped) && !sidebarOpen ? insetLeft : 0,
+                (rightTakesCenter || panelFirst) && !sidebarOpen ? insetLeft : 0,
               // The toggles zone sits over this segment's right end — unless
               // the chat has taken that edge.
-              paddingRight: swapped ? 0 : trailingReserve,
+              paddingRight: panelFirst ? 0 : trailingReserve,
               // Split tab bars need to divide the SAME width as the body panes
               // under them. They read this to cancel the reservation above and
               // then re-reserve it on the rightmost bar (panel-tabs.tsx).
-              ['--header-trailing-width' as string]: `${swapped ? 0 : trailingReserve}px`,
+              ['--header-trailing-width' as string]: `${panelFirst ? 0 : trailingReserve}px`,
             } as CSSProperties}
           >
             {rightHeader != null && (
@@ -723,66 +761,56 @@ export function ThreeColumnLayout({
       </div>
 
       {/* ============ Body band ============ */}
+      {/* One flat flex row. Reordering happens through `order` alone, so the
+          centre keeps its composer and the right column keeps its live views
+          mounted across a swap. */}
       <div className="flex min-h-0 flex-1 overflow-hidden">
-        {/* ============== Left + Center column ============== */}
+        {/* Hidden, not unmounted, when collapsed — the sidebar hosts the left
+            PanelHost, whose keepAlive:'always' panels (session list, file
+            tree, settings forms) must survive a collapse/expand cycle with
+            their state. Unmounting here silently defeated that policy. The
+            resize handle is chrome, not state, so it still goes away. */}
         <div
-          style={{ order: swapped ? 2 : 0 }}
+          style={{
+            order: order.sidebar,
+            ...(sidebarOpen ? { width: currentLeftWidth, transition: widthTransition } : undefined),
+          }}
           className={cn(
-            'flex min-w-0 flex-col overflow-hidden',
-            // Centre hidden with the right panel absorbing the space: shrink to
-            // just the sidebar. Two `flex-1` siblings would split the free
-            // width instead of handing it all over.
-            rightTakesCenter ? 'flex-none' : 'flex-1',
+            'shrink-0 overflow-hidden border-r',
+            !sidebarOpen && 'hidden',
           )}
         >
-          {/* Sidebar + Center */}
-          <div className="flex flex-1 overflow-hidden">
-            {/* Hidden, not unmounted, when collapsed — same reasoning as the
-                centre column below. The sidebar hosts the left PanelHost, whose
-                keepAlive:'always' panels (session list, file tree, settings
-                forms) must survive a collapse/expand cycle with their state.
-                Unmounting here silently defeated that policy. The resize handle
-                is chrome, not state, so it still goes away. */}
-            <div
-              style={
-                sidebarOpen ? { width: currentLeftWidth, transition: widthTransition } : undefined
-              }
-              className={cn(
-                'shrink-0 overflow-hidden border-r',
-                !sidebarOpen && 'hidden',
-              )}
-            >
-              {leftSidebar}
-            </div>
-            {sidebarOpen && (
-              <div
-                role="separator"
-                tabIndex={0}
-                aria-label={t('拖动调整侧栏宽度')}
-                aria-valuenow={currentLeftWidth}
-                aria-valuemin={minLeftWidth}
-                aria-valuemax={maxLeftWidth}
-                aria-orientation="vertical"
-                className={cn(
-                  'w-1 cursor-col-resize transition-colors',
-                  closing === 'sidebar' ? 'bg-primary' : 'hover:bg-muted-foreground/40',
-                )}
-                onMouseDown={() => beginDrag('left')}
-                onKeyDown={(e) => {
-                  if (e.key === 'ArrowLeft') handleKeyboardResize('left', -10);
-                  if (e.key === 'ArrowRight') handleKeyboardResize('left', 10);
-                }}
-              />
+          {leftSidebar}
+        </div>
+        {sidebarOpen && (
+          <div
+            role="separator"
+            tabIndex={0}
+            aria-label={t('拖动调整侧栏宽度')}
+            aria-valuenow={currentLeftWidth}
+            aria-valuemin={minLeftWidth}
+            aria-valuemax={maxLeftWidth}
+            aria-orientation="vertical"
+            style={{ order: order.leftDivider }}
+            className={cn(
+              'w-1 cursor-col-resize transition-colors',
+              closing === 'sidebar' ? 'bg-primary' : 'hover:bg-muted-foreground/40',
             )}
-            {/* Hidden, not unmounted: the centre column owns the composer, and a
-                plugin panel can trigger a send from fullscreen (`chat.send`).
-                Unmounting would take that path with it. */}
-            <div
-              className={cn('min-w-0 flex-1 overflow-hidden', !centerPanelOpen && 'hidden')}
-            >
-              {centerPanel}
-            </div>
-          </div>
+            onMouseDown={() => beginDrag('left')}
+            onKeyDown={(e) => {
+              if (e.key === 'ArrowLeft') handleKeyboardResize('left', -10);
+              if (e.key === 'ArrowRight') handleKeyboardResize('left', 10);
+            }}
+          />
+        )}
+        {/* Hidden, not unmounted: the centre column owns the composer, and a
+            plugin panel can trigger a send from fullscreen (`chat.send`).
+            Unmounting would take that path with it. */}
+        <div
+          style={{ order: order.center }}
+          className={cn('min-w-0 flex-1 overflow-hidden', !centerPanelOpen && 'hidden')}
+        >
+          {centerPanel}
         </div>
 
         {/* ============== Right column ============== */}
@@ -793,7 +821,7 @@ export function ThreeColumnLayout({
                 width={currentRightWidth}
                 minWidth={minRightWidth}
                 maxWidth={maxRightWidthNow()}
-                order={swapped ? 1 : 0}
+                order={order.rightDivider}
                 hot={closing === 'panel' || closing === 'center'}
                 onDragStart={() => beginDrag('right')}
                 onKeyboardResize={handleKeyboardResize}
@@ -801,13 +829,13 @@ export function ThreeColumnLayout({
             ) : null}
             <div
               style={{
-                order: swapped ? 0 : undefined,
+                order: order.right,
                 ...(rightTakesCenter
                   ? undefined
                   : { width: currentRightWidth, transition: widthTransition }),
               }}
               className={cn(
-                'overflow-hidden flex flex-col',
+                'flex flex-col overflow-hidden',
                 rightTakesCenter ? 'min-w-0 flex-1' : 'shrink-0',
               )}
             >
