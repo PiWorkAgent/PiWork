@@ -77,7 +77,10 @@ function TitleBarButton({
           data-activity-dot={dot ? 'true' : undefined}
           onClick={onClick}
           className={cn(
-            'relative flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground',
+            // shrink-0: in the sidebar's header (when it is the only column
+            // left) the row is narrow, and the toggles must not be squeezed
+            // while the workspace label can simply truncate instead.
+            'relative flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground',
             active && 'bg-accent text-accent-foreground',
           )}
         >
