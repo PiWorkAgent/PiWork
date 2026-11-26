@@ -18,7 +18,7 @@
     "pack:all": "pnpm build && node scripts/download-bash-bundle.cjs && node scripts/run-pack.cjs --mac --win --linux"
   },
   "dependencies": {
-    "@earendil-works/pi-coding-agent": "^1.5.0",
+    "@earendil-works/pi-coding-agent": "^1.6.0",
     "@earendil-works/pi-mcp": "1.5.0",
     "@pi/sdk-wrapper": "workspace:*",
     "@pi/types": "workspace:*",

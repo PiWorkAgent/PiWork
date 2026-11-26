@@ -10,7 +10,7 @@
     "clean": "node ../../scripts/clean.mjs dist"
   },
   "dependencies": {
-    "@earendil-works/pi-coding-agent": "^1.5.0",
+    "@earendil-works/pi-coding-agent": "^1.6.0",
     "@pi/sdk-wrapper": "workspace:*",
     "@pi/ui": "workspace:*",
     "@tanstack/react-query": "^5.105.0",
