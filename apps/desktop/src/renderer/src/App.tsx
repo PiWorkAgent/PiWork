@@ -378,6 +378,11 @@ function AppContent() {
       const p = payload as { text?: string; pluginMessage?: unknown } | undefined;
       const text = p?.text;
       if (text) {
+        // A plugin request is a result the user asked for. If the chat column
+        // is folded (they were reading the right panel at full width), open
+        // it first: delivering a turn into a hidden column is losing it.
+        const ui = useUIStore.getState();
+        if (!ui.centerPanelOpen) ui.setCenterPanelOpen(true);
         // The plugin message rides along when the host sent one: the composer
         // then delivers the turn as a plugin request card instead of a typed
         // user message (see composer.tsx). A host that only sent text still
