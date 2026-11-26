@@ -56,9 +56,12 @@ interface ThreeColumnLayoutProps {
   rightPanelOpen?: boolean;
   sidebarOpen?: boolean;
   /**
-   * What the body shows when every column has been put away. Without it the
-   * window is a white void with a title bar, which reads as a broken app
-   * rather than as a state — and there is nothing on screen to get back from.
+   * What the body shows when no work column is open — the chat and the panel
+   * both put away. Without it the window is a sidebar beside a white void with
+   * a title bar, which reads as a broken app rather than as a state.
+   *
+   * The sidebar does not count: it never fills the row, so with it alone the
+   * rest of the window would simply be empty.
    */
   blankState?: ReactNode;
   /**
@@ -772,11 +775,14 @@ export function ThreeColumnLayout({
           centre keeps its composer and the right column keeps its live views
           mounted across a swap. */}
       <div className="flex min-h-0 flex-1 overflow-hidden">
-        {/* Nothing opened at all: the row has no columns to divide, so the
-            host's blank state takes the whole body. The columns below stay
-            mounted (hidden) either way. */}
-        {!sidebarOpen && !centerPanelOpen && !rightPanelOpen && blankState != null && (
-          <div className="flex min-h-0 flex-1 overflow-hidden">{blankState}</div>
+        {/* No work column open: the row has nothing to divide, so the host's
+            blank state takes everything the sidebar leaves. The columns below
+            stay mounted (hidden) either way. It carries the centre's `order`
+            so it lands after the sidebar instead of pushing it right. */}
+        {!centerPanelOpen && !rightPanelOpen && blankState != null && (
+          <div className="flex min-h-0 flex-1 overflow-hidden" style={{ order: order.center }}>
+            {blankState}
+          </div>
         )}
         {/* Hidden, not unmounted, when collapsed — the sidebar hosts the left
             PanelHost, whose keepAlive:'always' panels (session list, file

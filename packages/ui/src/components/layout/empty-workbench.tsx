@@ -201,12 +201,13 @@ function render(
 }
 
 /**
- * What the window shows when every column has been put away.
+ * What the window shows when no work column is open — the chat and the panel
+ * both put away, with or without the sidebar beside it.
  *
- * It is reachable in three clicks and leads nowhere on its own, so instead of
- * a white void it is a small easter egg: a game of snake, drawn in the app's
- * own ink (no colour anywhere, matching the mark). Restoring any column from
- * the title bar unmounts this whole component, which takes the clock, the
+ * That area is reachable in two clicks and would otherwise be a white void, so
+ * instead of nothing it is a small easter egg: a game of snake, drawn in the
+ * app's own ink (no colour anywhere, matching the mark). Restoring a column
+ * from the title bar unmounts this whole component, which takes the clock, the
  * animation frame and the key listener with it.
  */
 export function EmptyWorkbench() {
@@ -234,6 +235,10 @@ export function EmptyWorkbench() {
   // mounted with it and removed with it, so no other view inherits it.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // The sidebar can be open beside the board, and its search box takes
+      // typing — the game must never eat a keystroke meant for a field.
+      const target = e.target as HTMLElement | null;
+      if (target?.closest('input, textarea, select, [contenteditable="true"]')) return;
       const dir = KEYS[e.key];
       if (dir) {
         e.preventDefault();
