@@ -54,6 +54,50 @@ export function panelLeftOffset(sidebarOpen: boolean, sidebarWidth: number): num
   return sidebarOpen ? sidebarWidth + DIVIDER_WIDTH : 0;
 }
 
+export type ColumnId = 'sidebar' | 'chat' | 'panel';
+
+/**
+ * The order the column toggles are drawn in: left to right, the same order the
+ * columns are on screen. After a swap the panel's button moves into the middle
+ * slot and the chat's to the right, so a button always sits where its column
+ * sits — its icon says which column it is, its place says which side.
+ *
+ * A collapsed column keeps its slot: that is where it comes back.
+ */
+export function columnOrder(shape: RowShape): ColumnId[] {
+  return shape.chatRight ? ['sidebar', 'panel', 'chat'] : ['sidebar', 'chat', 'panel'];
+}
+
+export type ColumnSlot = 'left' | 'center' | 'right';
+
+/**
+ * The side each work column carries in its toggle's label.
+ *
+ * The chat and the panel trade places, so a toggle named for its own column
+ * ("chat" / "panel") would contradict what the user reads off the window half
+ * the time. The label is positional instead: it names the side the column is
+ * on RIGHT NOW, so "隐藏中间栏" always hides whatever the eye finds in the
+ * middle.
+ *
+ * A column that is not on screen has no side; it is named for the side it
+ * would take when shown — which is what its restore button promises.
+ */
+export function columnSlots(shape: RowShape): { chat: ColumnSlot; panel: ColumnSlot } {
+  // The pair as it reads with both open. With the sidebar closed the two
+  // visible columns really are the row's left and right, so the left one is
+  // named 'left'.
+  const first: ColumnSlot = shape.sidebarOpen ? 'center' : 'left';
+  const both = shape.chatRight
+    ? { panel: first, chat: 'right' as ColumnSlot }
+    : { chat: first, panel: 'right' as ColumnSlot };
+  if (shape.centerPanelOpen && shape.rightPanelOpen) return both;
+  // Only one is on screen: it spans the whole work area, so the middle is the
+  // honest name for it.
+  return shape.centerPanelOpen
+    ? { chat: 'center', panel: both.panel }
+    : { chat: both.chat, panel: 'center' };
+}
+
 /**
  * The panel's width for a pointer at `x` (row px).
  *

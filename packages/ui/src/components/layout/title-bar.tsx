@@ -5,6 +5,7 @@ import { useUIStore } from '@/stores/ui-store';
 import { usePanelStore } from '@/stores/panel-store';
 import { countPluginUpdates, usePluginStore } from '@/stores/plugin-store';
 import { useI18n } from '@/i18n';
+import { columnOrder, columnSlots } from '@/lib/layout-arrangement';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 /**
@@ -84,10 +85,28 @@ function TitleBarButton({
           {dot && <span className="absolute right-0.5 top-0.5 h-1.5 w-1.5 rounded-full bg-primary" />}
         </button>
       </TooltipTrigger>
-      <TooltipContent side="bottom">{label}</TooltipContent>
+      {/*
+        Left, not below: this cluster sits at the window's right edge, and when
+        the right column is open a tooltip dropping downward lands on that
+        column's native pane — which is a separate view stacked above the
+        renderer, so it would cover the tooltip. Opening sideways keeps the
+        tooltip inside the title-bar band, where no pane exists.
+      */}
+      <TooltipContent side="left">{label}</TooltipContent>
     </Tooltip>
   );
 }
+
+/**
+ * The tooltip a column toggle carries, by the side the column is on. Full
+ * sentences per state, not "Hide" + a slot name glued together: the two halves
+ * are one phrase in some languages.
+ */
+const SLOT_LABEL = {
+  left: { shown: '隐藏左侧栏', hidden: '显示左侧栏' },
+  center: { shown: '隐藏中间栏', hidden: '显示中间栏' },
+  right: { shown: '隐藏右侧栏', hidden: '显示右侧栏' },
+} as const;
 
 /**
  * Sidebar visibility toggles. These actions already existed on the ui store but
@@ -118,6 +137,14 @@ export function LayoutToggles() {
   // chat moves out to the far edge instead of crossing it.
   const canSwapSides = rightPanelOpen && centerPanelOpen;
 
+  // The row as it is on screen. Both the order of the toggles and the side
+  // each one names are read from it, so neither can drift from the window.
+  const shape = { sidebarOpen, rightPanelOpen, centerPanelOpen, chatRight: chatRightOfPanels };
+  // The side each work column is on right now.
+  const slots = columnSlots(shape);
+  // Left to right, the order the columns are drawn in.
+  const placed = columnOrder(shape);
+
   // The right rail is only rendered while the sidebar is open, so a badge or
   // unread dot on a panel of a collapsed sidebar would otherwise be invisible.
   // Surface it on the toggle itself.
@@ -138,32 +165,51 @@ export function LayoutToggles() {
     });
   }, [panels, runtime, rightPanelOpen, pluginUpdates]);
 
+  // Both halves below — the order the toggles are drawn in and the side each
+  // one names — follow the swap (see `columnOrder` / `columnSlots`), so the
+  // second button is always "隐藏中间栏" and always hides what is in the middle.
   return (
     <>
-      <TitleBarButton
-        label={t(sidebarOpen ? '隐藏左侧栏' : '显示左侧栏')}
-        active={sidebarOpen}
-        onClick={toggleSidebar}
-      >
-        <PanelLeft className="h-4 w-4" />
-      </TitleBarButton>
-      <TitleBarButton
-        label={t(centerPanelOpen ? '隐藏中间栏' : '显示中间栏')}
-        active={centerPanelOpen}
-        onClick={toggleCenterPanel}
-      >
-        <Columns2 className="h-4 w-4" />
-      </TitleBarButton>
-      {hasRightPanels && (
-        <TitleBarButton
-          label={t(rightPanelOpen ? '隐藏右侧栏' : '显示右侧栏')}
-          active={rightPanelOpen}
-          dot={rightActivity}
-          onClick={toggleRightPanel}
-        >
-          <PanelRight className="h-4 w-4" />
-        </TitleBarButton>
-      )}
+      {placed.map((id) => {
+        if (id === 'sidebar') {
+          return (
+            <TitleBarButton
+              key={id}
+              // Closed, the left slot belongs to whichever work column took
+              // it — calling this button "左侧栏" then would name that column
+              // twice.
+              label={t(sidebarOpen ? '隐藏左侧栏' : '显示侧栏')}
+              active={sidebarOpen}
+              onClick={toggleSidebar}
+            >
+              <PanelLeft className="h-4 w-4" />
+            </TitleBarButton>
+          );
+        }
+        if (id === 'chat') {
+          return (
+            <TitleBarButton
+              key={id}
+              label={t(SLOT_LABEL[slots.chat][centerPanelOpen ? 'shown' : 'hidden'])}
+              active={centerPanelOpen}
+              onClick={toggleCenterPanel}
+            >
+              <Columns2 className="h-4 w-4" />
+            </TitleBarButton>
+          );
+        }
+        return hasRightPanels ? (
+          <TitleBarButton
+            key={id}
+            label={t(SLOT_LABEL[slots.panel][rightPanelOpen ? 'shown' : 'hidden'])}
+            active={rightPanelOpen}
+            dot={rightActivity}
+            onClick={toggleRightPanel}
+          >
+            <PanelRight className="h-4 w-4" />
+          </TitleBarButton>
+        ) : null;
+      })}
       {hasRightPanels && canSwapSides && (
         <TitleBarButton
           label={t(chatRightOfPanels ? '对话放回左侧' : '对话换到右侧')}

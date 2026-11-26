@@ -15,6 +15,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
   DIVIDER_WIDTH,
+  columnOrder,
+  columnSlots,
   dividerCenterX,
   isPanelFirst,
   panelLeftOffset,
@@ -102,4 +104,87 @@ test('the divider moves with the column that owns it', () => {
   assert.ok(at(true, 500) > at(true, 400), 'panel first: a wider panel reaches further right');
   assert.equal(at(false, 500), rowWidth - 500 - DIVIDER_WIDTH / 2);
   assert.equal(at(true, 500), leftOffset + 500 + DIVIDER_WIDTH / 2);
+});
+
+test('the toggles are drawn in the order the columns are on screen', () => {
+  // Only meaningful with both work columns on screen: a collapsed one has no
+  // place in the row to agree with (see the next test).
+  for (const chatRight of [false, true]) {
+    for (const sidebarOpen of [true, false]) {
+      const s = shape({ chatRight, sidebarOpen });
+      const order = rowOrder(s);
+      const rank = { sidebar: order.sidebar, chat: order.center, panel: order.right };
+      const onScreen = ['sidebar', 'chat', 'panel'].sort((a, b) => rank[a] - rank[b]);
+      assert.deepEqual(columnOrder(s), onScreen, JSON.stringify(s));
+    }
+  }
+});
+
+test('a collapsed column keeps its slot — that is where it comes back', () => {
+  // Closed panel: its button stays in the middle with the chat to the right,
+  // so opening it does not make the button jump somewhere else.
+  assert.deepEqual(columnOrder(shape({ chatRight: true, rightPanelOpen: false })), ['sidebar', 'panel', 'chat']);
+  assert.deepEqual(columnOrder(shape({ rightPanelOpen: false })), ['sidebar', 'chat', 'panel']);
+  assert.deepEqual(columnOrder(shape({ chatRight: true, centerPanelOpen: false })), ['sidebar', 'panel', 'chat']);
+});
+
+test('a toggle sits in the slot its label names', () => {
+  for (const chatRight of [false, true]) {
+    const s = shape({ chatRight });
+    const placed = columnOrder(s);
+    const slots = columnSlots(s);
+    // second button = middle column, third = right column, first = the sidebar
+    assert.equal(placed[0], 'sidebar');
+    assert.equal(slots[placed[1]], 'center', `middle button after chatRight=${chatRight}`);
+    assert.equal(slots[placed[2]], 'right', `right button after chatRight=${chatRight}`);
+  }
+});
+
+/**
+ * The toggle labels are positional: "隐藏中间栏" hides whichever column the eye
+ * finds in the middle. The slot follows the arrangement, never the column.
+ */
+test('every visible column is named for the side it is on', () => {
+  assert.deepEqual(columnSlots(shape()), { chat: 'center', panel: 'right' }, 'default row');
+  assert.deepEqual(
+    columnSlots(shape({ chatRight: true })),
+    { panel: 'center', chat: 'right' },
+    'swapped: the panel is the middle column now',
+  );
+  assert.deepEqual(
+    columnSlots(shape({ sidebarOpen: false })),
+    { chat: 'left', panel: 'right' },
+    'no sidebar: the two columns really are the row edges',
+  );
+  assert.deepEqual(
+    columnSlots(shape({ sidebarOpen: false, chatRight: true })),
+    { panel: 'left', chat: 'right' },
+    'no sidebar, swapped',
+  );
+});
+
+test('two columns on screen never share a name', () => {
+  for (const sidebarOpen of [true, false]) {
+    for (const chatRight of [true, false]) {
+      const s = shape({ sidebarOpen, chatRight });
+      const { chat, panel } = columnSlots(s);
+      assert.notEqual(chat, panel, `sidebarOpen=${sidebarOpen} chatRight=${chatRight}`);
+      if (sidebarOpen) assert.notEqual(chat, 'left', 'the sidebar owns the left slot');
+    }
+  }
+});
+
+test('a column that has the work area to itself is the middle one', () => {
+  assert.equal(columnSlots(shape({ rightPanelOpen: false })).chat, 'center');
+  assert.equal(columnSlots(shape({ centerPanelOpen: false })).panel, 'center');
+  assert.equal(columnSlots(shape({ sidebarOpen: false, rightPanelOpen: false })).chat, 'center');
+});
+
+test('a hidden column is named for the side it will take back', () => {
+  // Panel closed: it reopens on the side the preference puts it.
+  assert.equal(columnSlots(shape({ rightPanelOpen: false })).panel, 'right');
+  assert.equal(columnSlots(shape({ rightPanelOpen: false, chatRight: true })).panel, 'center');
+  // Chat closed: with the preference on it reopens at the far edge, not the middle.
+  assert.equal(columnSlots(shape({ centerPanelOpen: false, chatRight: true })).chat, 'right');
+  assert.equal(columnSlots(shape({ centerPanelOpen: false })).chat, 'center');
 });
