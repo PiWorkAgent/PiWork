@@ -101,6 +101,16 @@ export interface ChatService {
    * knows: it owns the live sessions.
    */
   isSessionBusy?(sessionId: string): boolean;
+  /**
+   * Drop the live session for one conversation so the next prompt rebuilds it
+   * from the transcript on disk.
+   *
+   * The AgentSession reads the transcript when it is created; rewriting the
+   * file underneath it (clearing a conversation) leaves that copy stale. Only
+   * the owner of the live sessions can retire one — and it refuses while a run
+   * is in flight, because that would put two writers over one file.
+   */
+  resetSession?(sessionId: string): Promise<void>;
   /** Optional: retire every cached session (app quit). Extensions such as MCP
    *  close their child processes on `session_shutdown`. */
   dispose?(): Promise<void>;

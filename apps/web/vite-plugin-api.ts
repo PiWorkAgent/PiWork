@@ -243,6 +243,16 @@ async function handleRequest(server: ViteDevServer, method: string, params: any)
         case 'get': return sessionService.get(params.id);
         case 'create': return sessionService.create(params.workspaceId, params.title);
         case 'delete': return sessionService.delete(params.id);
+        case 'clear': {
+          // Same order as the desktop host: stop the run, let the session
+          // settle, retire the live one, then rewrite the file in place.
+          try { await chatService.stopGeneration(params.id); } catch { /* best-effort */ }
+          for (let i = 0; i < 40 && chatService.isSessionBusy?.(params.id); i += 1) {
+            await new Promise((resolve) => setTimeout(resolve, 50));
+          }
+          await chatService.resetSession?.(params.id);
+          return sessionService.clear(params.id);
+        }
         case 'updateTitle': return sessionService.updateTitle(params.id, params.title);
         case 'getTree': return sessionService.getTree(params.id);
         case 'fork':

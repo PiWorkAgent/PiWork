@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, ChevronDown, Pencil, Plus, X } from 'lucide-react';
+import { Check, ChevronDown, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { useSDK } from '@/hooks/use-sdk';
 import { useUIStore } from '@/stores/ui-store';
+import { toast } from '@/stores/toast-store';
 import { activateSession } from '@/lib/window-actions';
 import { useI18n } from '@/i18n';
 import { Button } from '@/components/ui/button';
@@ -66,6 +67,31 @@ export function SessionHeader() {
       queryClient.invalidateQueries({ queryKey: ['sessions'] });
       queryClient.invalidateQueries({ queryKey: ['workspaces'] });
       void activateSession(session.id);
+    },
+  });
+
+  // Clear ≠ delete: the conversation keeps its identity (and with it the
+  // window's panel layout, the browser's tabs) and only loses its messages.
+  // New conversations are what the + next to this is for.
+  //
+  // A menu rather than a modal: a centred dialog lands over the right column's
+  // native panels, which are separate windows stacked above the renderer — the
+  // dialog gets covered by them. A menu anchored to this button opens downward
+  // inside the chat column and never crosses into a pane.
+  const clearMutation = useMutation({
+    mutationFn: (id: string) => sdk.session.clear(id),
+    onSuccess: (_data, id) => {
+      queryClient.invalidateQueries({ queryKey: ['session', id] });
+      queryClient.invalidateQueries({ queryKey: ['sessions'] });
+      toast(t('聊天记录已清空'));
+    },
+    onError: (err) => {
+      toast(
+        t('清空失败：{message}', {
+          message: err instanceof Error ? err.message : String(err),
+        }),
+        'error',
+      );
     },
   });
 
@@ -222,8 +248,42 @@ export function SessionHeader() {
             </TooltipTrigger>
             <TooltipContent side="bottom">{t('新建会话')}</TooltipContent>
           </Tooltip>
+          <DropdownMenu>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className="h-7 w-7 text-muted-foreground/70 hover:text-foreground"
+                    disabled={!activeSession || clearMutation.isPending}
+                    aria-label={t('清空聊天记录')}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">{t('清空聊天记录')}</TooltipContent>
+            </Tooltip>
+            <DropdownMenuContent align="end" className="w-60">
+              <DropdownMenuItem
+                className="text-destructive"
+                disabled={!activeSession || clearMutation.isPending}
+                onClick={() => {
+                  if (activeSessionId) clearMutation.mutate(activeSessionId);
+                }}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                {t('清空聊天记录')}
+              </DropdownMenuItem>
+              <p className="px-2 pt-1 pb-1.5 text-[0.6875rem] leading-snug text-muted-foreground">
+                {t('会话和右侧面板都会保留，聊天记录清空后无法恢复。')}
+              </p>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       )}
+
     </div>
   );
 }

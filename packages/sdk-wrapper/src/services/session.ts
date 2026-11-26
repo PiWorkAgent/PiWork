@@ -5,6 +5,20 @@ export interface SessionService {
   get(id: string): Promise<SessionWithMessages>;
   create(workspaceId: string, title?: string): Promise<Session>;
   delete(id: string): Promise<void>;
+  /**
+   * Clear a conversation in place: every message is dropped, the session
+   * itself stays — same id, same file, same title. This is the "start fresh
+   * without losing the work panel" action: because the conversation is not
+   * replaced, the window's panel layout and the plugin state (the browser's
+   * tabs, for one) stay exactly where they are.
+   *
+   * The latest model and thinking-level choices are kept: they are settings
+   * the user made for this conversation, not history.
+   *
+   * Refuses (throws) while the conversation has a run in flight — the file is
+   * being written then. Callers stop the run first.
+   */
+  clear(id: string): Promise<void>;
   updateTitle(id: string, title: string): Promise<Session>;
   getTree(id: string): Promise<SessionTreeResult>;
   /**

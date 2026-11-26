@@ -262,6 +262,11 @@ export const EN_MESSAGES = {
   重命名会话: 'Rename session',
   会话列表: 'Session list',
   新建会话: 'New session',
+  清空聊天记录: 'Clear chat history',
+  '会话和右侧面板都会保留，聊天记录清空后无法恢复。':
+    'The conversation and the right panel stay; the messages cannot be recovered.',
+  聊天记录已清空: 'Chat history cleared',
+  '清空失败：{message}': 'Failed to clear: {message}',
   正在运行: 'Running',
   等待你的操作: 'Waiting for you',
   '权限模式（全局，重启后恢复默认）': 'Permission mode (global; resets on restart)',

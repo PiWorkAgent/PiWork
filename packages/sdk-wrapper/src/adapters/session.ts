@@ -7,7 +7,7 @@ import {
   type SessionEntry,
   type SessionInfo,
 } from '@earendil-works/pi-coding-agent';
-import { existsSync, unlinkSync, statSync } from 'fs';
+import { existsSync, readFileSync, unlinkSync, writeFileSync, statSync } from 'fs';
 import * as path from 'path';
 import { extractThinkContent } from '../utils/think-parser.js';
 import { detectWrittenFiles, getMimeType } from '../utils/file-detection.js';
@@ -1099,6 +1099,60 @@ export function createRealSessionService(): SessionService {
       if (existsSync(id)) {
         unlinkSync(id);
       }
+    },
+
+    /**
+     * Clear the transcript in place: keep the session header (same file, same
+     * id) and the user's setup entries, drop everything else.
+     *
+     * Rewritten at the file level because SessionManager is append-only by
+     * design, and the result has to be readable by any later open — the next
+     * turn rebuilds its (empty) context from this file. The model and thinking
+     * choices are re-appended through the SDK so ids and parent links stay
+     * valid; the title rides along because a cleared conversation keeping its
+     * name is less confusing than one silently renamed to "Untitled".
+     */
+    async clear(id: string): Promise<void> {
+      if (!existsSync(id)) throw new Error('会话不存在');
+      const lines = readFileSync(id, 'utf8').split('\n').filter(Boolean);
+
+      let header: Record<string, unknown> | null = null;
+      try {
+        const first = JSON.parse(lines[0] ?? '') as Record<string, unknown>;
+        if (first?.type === 'session') header = first;
+      } catch {
+        /* reported below */
+      }
+      if (!header) throw new Error('不是有效的会话文件');
+
+      // Last one wins: the file is a log, and the latest choice is the current one.
+      const setup: Record<string, Record<string, unknown>> = {};
+      for (const line of lines.slice(1)) {
+        let entry: Record<string, unknown>;
+        try {
+          entry = JSON.parse(line) as Record<string, unknown>;
+        } catch {
+          continue;
+        }
+        const type = String(entry?.type ?? '');
+        if (type === 'model_change' || type === 'thinking_level_change' || type === 'session_info') {
+          setup[type] = entry;
+        }
+      }
+
+      writeFileSync(id, `${JSON.stringify(header)}\n`);
+
+      const sm = SessionManager.open(id);
+      const model = setup.model_change;
+      if (model && model.provider && model.modelId) {
+        sm.appendModelChange(String(model.provider), String(model.modelId));
+      }
+      const thinking = setup.thinking_level_change;
+      if (thinking && thinking.thinkingLevel) {
+        sm.appendThinkingLevelChange(String(thinking.thinkingLevel));
+      }
+      const info = setup.session_info;
+      if (info?.name) sm.appendSessionInfo(String(info.name));
     },
 
     async updateTitle(id: string, title: string): Promise<Session> {

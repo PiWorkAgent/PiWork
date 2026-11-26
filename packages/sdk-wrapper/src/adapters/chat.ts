@@ -1452,6 +1452,25 @@ export function createRealChatService(
       return !!cached && (cached.session.isStreaming || cached.session.isCompacting);
     },
 
+    /**
+     * Retire one cached session so its next prompt reopens the transcript from
+     * disk. Used after a transcript was cleared in place: the live session
+     * still holds the messages it read at open time, and stepping over them is
+     * exactly what "clear" promised.
+     */
+    async resetSession(sessionId: string): Promise<void> {
+      const key = sessionId || 'default';
+      const cached = activeSessions.get(key);
+      if (!cached) return;
+      if (cached.session.isStreaming || cached.session.isCompacting) {
+        throw new Error('会话正在运行，停下来之后再清空');
+      }
+      try { cached.unsubscribe(); } catch { /* best-effort */ }
+      await retireSession(cached.session, 'reload');
+      activeSessions.delete(key);
+      staleSessions.delete(key);
+    },
+
     /** Retire every cached session. Called on app quit so extensions (notably
      *  MCP stdio servers) get `session_shutdown` instead of dying with us. */
     async dispose(): Promise<void> {

@@ -371,6 +371,28 @@ export function ChatTimeline() {
     return () => api.removeListener('pi:plugin:message', onPluginMessage);
   }, [queryClient]);
 
+  // A conversation cleared in another window: the file it was reading is empty
+  // now. This window redraws from disk like the one that asked did.
+  useEffect(() => {
+    const api = (
+      window as unknown as {
+        electronAPI?: {
+          on: (channel: string, callback: (...args: unknown[]) => void) => void;
+          removeListener: (channel: string, callback: (...args: unknown[]) => void) => void;
+        };
+      }
+    ).electronAPI;
+    if (!api?.on) return;
+    const onCleared = (payload: unknown) => {
+      const sessionId = (payload as { sessionId?: string } | null)?.sessionId;
+      if (!sessionId) return;
+      void queryClient.invalidateQueries({ queryKey: ['session', sessionId] });
+      void queryClient.invalidateQueries({ queryKey: ['sessions'] });
+    };
+    api.on('pi:session:cleared', onCleared);
+    return () => api.removeListener('pi:session:cleared', onCleared);
+  }, [queryClient]);
+
   // Stable timestamp: captured once per RUN and kept until the live reply is
   // gone, so the message does not change identity mid-swap. Re-keyed on the
   // run id: plugin-triggered runs can start before the previous run's live

@@ -260,6 +260,24 @@ async function handleSession(action: string, params: unknown): Promise<unknown> 
       return sessionService.delete(id);
     }
     case 'updateTitle': return sessionService.updateTitle(p.id as string, p.title as string);
+    case 'clear': {
+      // Clear in place: the conversation keeps its file and id (so the window's
+      // panels and plugin state stay put) and loses its messages.
+      const id = p.id as string;
+      // A live run is a writer: stop it, then wait for the session to settle so
+      // the agent session can be retired before the file is rewritten.
+      try { await chatService.stopGeneration(id); } catch { /* best-effort */ }
+      for (let i = 0; i < 40 && chatService.isSessionBusy?.(id); i += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      // Retire before rewriting: the SDK flushes on shutdown, and those entries
+      // must land in the transcript we are about to drop.
+      await chatService.resetSession?.(id);
+      await sessionService.clear(id);
+      // Other windows showing this conversation redraw from the empty file.
+      windows.broadcast('pi:session:cleared', { sessionId: id });
+      return { ok: true };
+    }
     case 'getTree': return sessionService.getTree(p.id as string);
     case 'fork': {
       const sourceId = p.sourceId as string;
